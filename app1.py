@@ -66,7 +66,7 @@ DASHBOARD_HTML = BASE_STYLE + """
     {% if upgrade_msg %}
     <div class="upgrade-alert">
         <h2>🎉 Hurray!! You have Achieved RockyAIPro</h2>
-        <p>Unlock URL: <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" style="color: #00FFCC;" target="_blank">https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed</a></p>
+        <p>Unlock URL: <a href="https://rockai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" style="color: #00FFCC;" target="_blank">https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed</a></p>
         <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" target="_blank" class="btn-upgrade">Launch RockyAIPro</a>
     </div>
     {% endif %}
