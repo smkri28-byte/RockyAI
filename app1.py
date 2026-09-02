@@ -71,7 +71,7 @@ DASHBOARD_HTML = BASE_STYLE + """
     </div>
     {% endif %}
 
-    <div class="headline">Welcome, {{ username }} [Prompts Used: {{ prompts_count }}/100]</div>
+    <div class="headline">Welcome, {{ username }} [Prompts Used: {{ prompts_count }}/100] {% if role == 'admin' %}<span style="color:#e74c3c;">(ADMIN ACCESS KEY ACTIVE)</span>{% endif %}</div>
     <div class="menu-box">
         <form method="POST" action="/run-feature" enctype="multipart/form-data">
             <div class="form-group" style="display: flex; gap: 10px;">
@@ -129,24 +129,27 @@ def dashboard():
     if 'username' not in session: return redirect(url_for('login'))
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT prompts_count FROM users WHERE username = ?", (session['username'],))
+    cursor.execute("SELECT prompts_count, role FROM users WHERE username = ?", (session['username'],))
     row = cursor.fetchone()
     count = row[0] if row else 0
+    role = row[1] if row else 'user'
     conn.close()
-    return render_template_string(DASHBOARD_HTML, username=session['username'], prompts_count=count, upgrade_msg=(count >= 100), output_data="Ready.", prev_query="")
+    return render_template_string(DASHBOARD_HTML, username=session['username'], prompts_count=count, role=role, upgrade_msg=(count >= 100 or role == 'admin'), output_data="Ready.", prev_query="")
 
 @app.route('/run-feature', methods=['POST'])
 def run_feature():
     if 'username' not in session: return redirect(url_for('login'))
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT prompts_count FROM users WHERE username = ?", (session['username'],))
-    count = cursor.fetchone()[0] + 1
+    cursor.execute("SELECT prompts_count, role FROM users WHERE username = ?", (session['username'],))
+    row = cursor.fetchone()
+    count = row[0] + 1
+    role = row[1]
     cursor.execute("UPDATE users SET prompts_count = ? WHERE username = ?", (count, session['username']))
     conn.commit()
     conn.close()
     
-    upgrade_msg = (count >= 100)
+    upgrade_msg = (count >= 100 or role == 'admin')
     query = request.form.get('query', '')
     
     file = request.files.get('doc_file')
@@ -163,11 +166,13 @@ def run_feature():
     
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT prompts_count FROM users WHERE username = ?", (session['username'],))
-    c_val = cursor.fetchone()[0]
+    cursor.execute("SELECT prompts_count, role FROM users WHERE username = ?", (session['username'],))
+    row_val = cursor.fetchone()
+    c_val = row_val[0]
+    r_val = row_val[1]
     conn.close()
 
-    return render_template_string(DASHBOARD_HTML, username=session['username'], prompts_count=c_val, upgrade_msg=upgrade_msg, output_data=res, prev_query=query)
+    return render_template_string(DASHBOARD_HTML, username=session['username'], prompts_count=c_val, role=r_val, upgrade_msg=(c_val >= 100 or r_val == 'admin'), output_data=res, prev_query=query)
 
 @app.route('/logout')
 def logout():
