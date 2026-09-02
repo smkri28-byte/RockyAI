@@ -5,11 +5,11 @@ import PyPDF2
 import os
 
 app = Flask(__name__)
-app.secret_key = "2473f200f4c64bc97c21bc3802a88a566b0779b14a4404f5fab1025cf0a9ba00"
+app.secret_key = "306bfc52a357222048d4323e6861a38c653b899b5d920523f59a5add218ce43d"
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY) if API_KEY else None
-DB_FILE = "rockyaipro.db"
+DB_FILE = "rockaiplus.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -24,71 +24,68 @@ def init_db():
 
 init_db()
 
-PRO_STYLE = """
+BASE_STYLE = """
 <style>
-    body { background-color: #0b0b0f; color: #f1c40f; font-family: 'Arial', sans-serif; margin: 0; padding: 20px; }
-    .auth-container { max-width: 400px; margin: 50px auto; padding: 30px; background-color: #16161d; border: 1px solid #f1c40f; border-radius: 8px; text-align: center; }
+    body { background-color: #050505; color: #FFFFFF; font-family: 'Arial', sans-serif; margin: 0; padding: 20px; }
+    .auth-container { max-width: 400px; margin: 50px auto; padding: 30px; background-color: #111; border: 1px solid #222; border-radius: 8px; text-align: center; }
     .dashboard-container { max-width: 1200px; margin: 0 auto; }
-    .headline { font-size: 32px; font-weight: bold; color: #f39c12; margin-bottom: 20px; }
+    .headline { font-size: 32px; font-weight: bold; color: #00FFCC; margin-bottom: 20px; }
     .form-group { margin-bottom: 15px; text-align: left; }
-    input, select, textarea { width: 100%; padding: 10px; background: #222; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
-    button, input[type="submit"] { background-color: #f39c12; color: black; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    input, select, textarea { width: 100%; padding: 10px; background: #222; border: 1px solid #333; color: white; border-radius: 4px; box-sizing: border-box; }
+    button, input[type="submit"] { background-color: #222; color: white; padding: 10px 20px; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-green { background-color: #27ae60 !important; }
+    .btn-upgrade { background-color: #e67e22 !important; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; margin-top: 10px; }
     .alert { padding: 10px; background-color: #e74c3c; color: white; border-radius: 4px; margin-bottom: 15px; }
-    .upgrade-alert { padding: 20px; background-color: #27ae60; border: 2px solid #ffd700; color: white; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-    .menu-box { background: #16161d; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-    .output-box { background: #16161d; padding: 20px; border-radius: 8px; border: 1px solid #333; white-space: pre-wrap; color: #fff; min-height: 200px; }
-    .nav-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+    .upgrade-alert { padding: 20px; background-color: #2c3e50; border: 2px solid #f39c12; color: white; border-radius: 8px; margin-bottom: 20px; text-align: center; word-break: break-all; }
+    .menu-box { background: #111; padding: 20px; border-radius: 8px; border: 1px solid #222; margin-bottom: 20px; }
+    .output-box { background: #111; padding: 20px; border-radius: 8px; border: 1px solid #222; white-space: pre-wrap; min-height: 200px; }
+    .nav-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding-bottom: 10px; margin-bottom: 20px; }
 </style>
 """
 
-PRO_LOGIN = PRO_STYLE + """
+LOGIN_HTML = BASE_STYLE + """
 <div class="auth-container">
-    <h2>💰 RockyAIPro Login</h2>
+    <h2>RockAIPlus Login</h2>
     {% with messages = get_flashed_messages() %}{% if messages %}{% for m in messages %}<div class="alert">{{m}}</div>{% endfor %}{% endif %}{% endwith %}
     <form method="POST" action="/login">
         <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
         <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
-        <input type="submit" value="Log In Pro" style="width: 100%;">
+        <input type="submit" value="Log In" style="width: 100%;">
     </form>
+    <p style="margin-top:20px;"><a href="/register" style="color: #00FFCC; text-decoration: none;">Create Account</a></p>
 </div>
 """
 
-ACCESS_DENIED_HTML = PRO_STYLE + """
-<div class="auth-container" style="border-color: #e74c3c; max-width: 600px;">
-    <h2 style="color: #e74c3c;">Access Denied Please unlock by completing prompts !!</h2>
-    <p>You must complete the required prompt limit on RockAIPlus to unlock and access RockyAIPro.</p>
-    <a href="https://rock-ai-plus.onrender.com" class="btn-upgrade" style="background-color: #e74c3c !important; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; margin-top: 10px;">Return to RockAIPlus</a>
-</div>
-"""
-
-PRO_DASHBOARD = PRO_STYLE + """
+DASHBOARD_HTML = BASE_STYLE + """
 <div class="dashboard-container">
     <div class="nav-bar">
-        <h1>💰 RockyAIPro Dashboard</h1>
+        <h1>RockAIPlus Study Assistant</h1>
         <div><a href="/logout"><button>Log Out</button></a></div>
     </div>
     
     {% if upgrade_msg %}
     <div class="upgrade-alert">
-        <h2>🎉 Hurray!! You have Reached Max Pro Tier</h2>
-        <p>You have successfully completed all prompt requirements on RockyAIPro!</p>
+        <h2>🎉 Hurray!! You have Achieved RockyAIPro</h2>
+        <p>Unlock URL: <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" style="color: #00FFCC;" target="_blank">https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed</a></p>
+        <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" target="_blank" class="btn-upgrade">Launch RockyAIPro</a>
     </div>
     {% endif %}
 
-    <div class="headline">Welcome Pro User: {{ username }} [Prompts Used: {{ prompts_count }}/250] {% if role == 'admin' %}<span style="color:#e74c3c;">(ADMIN ACCESS KEY ACTIVE)</span>{% endif %}</div>
+    <div class="headline">Welcome, {{ username }} [Prompts Used: {{ prompts_count }}/100] {% if role == 'admin' %}<span style="color:#e74c3c;">(ADMIN ACCESS KEY ACTIVE)</span>{% endif %}</div>
     <div class="menu-box">
         <form method="POST" action="/run-feature" enctype="multipart/form-data">
             <div class="form-group" style="display: flex; gap: 10px;">
                 <select name="feature" style="width: 30%;">
-                    <option value="ask_ai">Ask Pro AI</option>
+                    <option value="ask_ai">Ask AI</option>
+                    <option value="text_mindmap">Mindmap</option>
                 </select>
-                <input type="text" name="query" placeholder="Type query..." value="{{ prev_query }}">
+                <input type="text" name="query" placeholder="Ask anything..." value="{{ prev_query }}">
             </div>
             <div class="form-group">
                 <label>Document Upload (PDF Only):</label>
                 <input type="file" name="doc_file" accept=".pdf">
             </div>
-            <button type="submit">Execute Pro Feature</button>
+            <button type="submit" class="btn-green">Run Feature</button>
         </form>
     </div>
     <div class="output-box">{{ output_data | safe }}</div>
@@ -97,10 +94,6 @@ PRO_DASHBOARD = PRO_STYLE + """
 
 @app.route('/')
 def home():
-    if request.args.get('unlocked') == 'rockaiplus_passed' or session.get('role') == 'admin':
-        session['unlocked'] = True
-    if not session.get('unlocked'):
-        return render_template_string(ACCESS_DENIED_HTML)
     return redirect(url_for('login') if 'username' not in session else 'dashboard')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -113,27 +106,28 @@ def login():
         conn.close()
         if user:
             session['username'], session['role'] = user[0], user[1]
-            if user[1] == 'admin':
-                session['unlocked'] = True
             return redirect(url_for('dashboard'))
-        flash("Invalid login.")
-    
-    if session.get('role') == 'admin':
-        session['unlocked'] = True
+        flash("Invalid credentials.")
+    return render_template_string(LOGIN_HTML)
 
-    if not session.get('unlocked'):
-        return render_template_string(ACCESS_DENIED_HTML)
-        
-    return render_template_string(PRO_LOGIN)
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO users (username, password, role, prompts_count) VALUES (?, ?, 'user', 0)", 
+                           (request.form['username'], request.form['password']))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('login'))
+        except Exception as e:
+            conn.close()
+            flash("Username already exists or invalid data.")
+    return render_template_string(LOGIN_HTML.replace("RockAIPlus Login", "Register RockAIPlus").replace('action="/login"', 'action="/register"').replace('value="Log In"', 'value="Register"'))
 
 @app.route('/dashboard')
 def dashboard():
-    if session.get('role') == 'admin':
-        session['unlocked'] = True
-
-    if not session.get('unlocked'):
-        return render_template_string(ACCESS_DENIED_HTML)
-        
     if 'username' not in session: return redirect(url_for('login'))
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -142,15 +136,11 @@ def dashboard():
     count = row[0] if row else 0
     role = row[1] if row else 'user'
     conn.close()
-    return render_template_string(PRO_DASHBOARD, username=session['username'], prompts_count=count, role=role, upgrade_msg=(count >= 250 or role == 'admin'), output_data="Pro Console Ready.", prev_query="")
+    return render_template_string(DASHBOARD_HTML, username=session['username'], prompts_count=count, role=role, upgrade_msg=(count >= 100 or role == 'admin'), output_data="Ready.", prev_query="")
 
 @app.route('/run-feature', methods=['POST'])
 def run_feature():
-    if session.get('role') == 'admin':
-        session['unlocked'] = True
-    if not session.get('unlocked'): return render_template_string(ACCESS_DENIED_HTML)
     if 'username' not in session: return redirect(url_for('login'))
-    
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT prompts_count, role FROM users WHERE username = ?", (session['username'],))
@@ -160,8 +150,8 @@ def run_feature():
     cursor.execute("UPDATE users SET prompts_count = ? WHERE username = ?", (count, session['username']))
     conn.commit()
     conn.close()
-
-    upgrade_msg = (count >= 250 or role == 'admin')
+    
+    upgrade_msg = (count >= 100 or role == 'admin')
     query = request.form.get('query', '')
     
     file = request.files.get('doc_file')
@@ -174,8 +164,8 @@ def run_feature():
                 doc_text += page.extract_text() or ""
 
     full_prompt = f"{query}\n\nDocument Context:\n{doc_text[:8000]}" if doc_text else query
-    res = client.models.generate_content(model="gemini-2.5-flash", contents=full_prompt).text if client else "API Missing."
-
+    res = client.models.generate_content(model="gemini-2.5-flash", contents=full_prompt).text if client else "API Key missing."
+    
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT prompts_count, role FROM users WHERE username = ?", (session['username'],))
@@ -184,7 +174,7 @@ def run_feature():
     r_val = row_val[1]
     conn.close()
 
-    return render_template_string(PRO_DASHBOARD, username=session['username'], prompts_count=c_val, role=r_val, upgrade_msg=(c_val >= 250 or r_val == 'admin'), output_data=res, prev_query=query)
+    return render_template_string(DASHBOARD_HTML, username=session['username'], prompts_count=c_val, role=r_val, upgrade_msg=(c_val >= 100 or r_val == 'admin'), output_data=res, prev_query=query)
 
 @app.route('/logout')
 def logout():
@@ -192,4 +182,4 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(port=5001)
+    app.run(port=5000)
