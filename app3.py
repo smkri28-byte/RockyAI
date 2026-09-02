@@ -4,7 +4,7 @@ import sqlite3
 import os
 
 app = Flask(__name__)
-app.secret_key = "rockyaipromax_unique_secret_key_321"
+app.secret_key = "3d86df53d92a80f0d92e0052e13bda8c3295dd4de97a5cbfbe59257c41307d58"
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY) if API_KEY else None
