@@ -116,13 +116,15 @@ def register():
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         try:
-            cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (request.form['username'], request.form['password']))
+            cursor.execute("INSERT INTO users (username, password, role, prompts_count) VALUES (?, ?, 'user', 0)", 
+                           (request.form['username'], request.form['password']))
             conn.commit()
             conn.close()
             return redirect(url_for('login'))
-        except:
-            flash("Username exists.")
-    return render_template_string(LOGIN_HTML.replace("RockAIPlus Login", "Register RockAIPlus"))
+        except Exception as e:
+            conn.close()
+            flash("Username already exists or invalid data.")
+    return render_template_string(LOGIN_HTML.replace("RockAIPlus Login", "Register RockAIPlus").replace('action="/login"', 'action="/register"').replace('value="Log In"', 'value="Register"'))
 
 @app.route('/dashboard')
 def dashboard():
