@@ -6,7 +6,7 @@ import docx
 import os
 
 app = Flask(__name__)
-app.secret_key = "rockyai_unique_secret_key_987"
+app.secret_key = "2473f200f4c64bc97c21bc3802a88a566b0779b14a4404f5fab1025cf0a9ba00"
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY) if API_KEY else None
