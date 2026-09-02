@@ -2,7 +2,6 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 from google import genai
 import sqlite3
 import PyPDF2
-import docx
 import os
 
 app = Flask(__name__)
@@ -10,7 +9,7 @@ app.secret_key = "306bfc52a357222048d4323e6861a38c653b899b5d920523f59a5add218ce4
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY) if API_KEY else None
-DB_FILE = "rockyai.db"
+DB_FILE = "rockaiplus.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -46,7 +45,7 @@ BASE_STYLE = """
 
 LOGIN_HTML = BASE_STYLE + """
 <div class="auth-container">
-    <h2>RockyAI Login</h2>
+    <h2>RockAIPlus Login</h2>
     {% with messages = get_flashed_messages() %}{% if messages %}{% for m in messages %}<div class="alert">{{m}}</div>{% endfor %}{% endif %}{% endwith %}
     <form method="POST" action="/login">
         <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
@@ -60,15 +59,15 @@ LOGIN_HTML = BASE_STYLE + """
 DASHBOARD_HTML = BASE_STYLE + """
 <div class="dashboard-container">
     <div class="nav-bar">
-        <h1>RockyAI Study Assistant</h1>
+        <h1>RockAIPlus Study Assistant</h1>
         <div><a href="/logout"><button>Log Out</button></a></div>
     </div>
     
     {% if upgrade_msg %}
     <div class="upgrade-alert">
         <h2>🎉 Hurray!! You have Achieved RockyAIPro</h2>
-        <p>Unlock URL: <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockyai_passed" style="color: #00FFCC;" target="_blank">https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockyai_passed</a></p>
-        <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockyai_passed" target="_blank" class="btn-upgrade">Launch RockyAIPro</a>
+        <p>Unlock URL: <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" style="color: #00FFCC;" target="_blank">https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed</a></p>
+        <a href="https://rockyai-pro-net.onrender.com/dashboard?unlocked=rockaiplus_passed" target="_blank" class="btn-upgrade">Launch RockyAIPro</a>
     </div>
     {% endif %}
 
@@ -83,8 +82,8 @@ DASHBOARD_HTML = BASE_STYLE + """
                 <input type="text" name="query" placeholder="Ask anything..." value="{{ prev_query }}">
             </div>
             <div class="form-group">
-                <label>Document Upload (PDF or DOCX):</label>
-                <input type="file" name="doc_file" accept=".pdf,.docx">
+                <label>Document Upload (PDF Only):</label>
+                <input type="file" name="doc_file" accept=".pdf">
             </div>
             <button type="submit" class="btn-green">Run Feature</button>
         </form>
@@ -123,7 +122,7 @@ def register():
             return redirect(url_for('login'))
         except:
             flash("Username exists.")
-    return render_template_string(LOGIN_HTML.replace("RockyAI Login", "Register RockyAI"))
+    return render_template_string(LOGIN_HTML.replace("RockAIPlus Login", "Register RockAIPlus"))
 
 @app.route('/dashboard')
 def dashboard():
@@ -158,10 +157,6 @@ def run_feature():
             reader = PyPDF2.PdfReader(file)
             for page in reader.pages:
                 doc_text += page.extract_text() or ""
-        elif filename.endswith('.docx'):
-            docx_obj = docx.Document(file)
-            for para in docx_obj.paragraphs:
-                doc_text += para.text + "\n"
 
     full_prompt = f"{query}\n\nDocument Context:\n{doc_text[:8000]}" if doc_text else query
     res = client.models.generate_content(model="gemini-2.5-flash", contents=full_prompt).text if client else "API Key missing."
