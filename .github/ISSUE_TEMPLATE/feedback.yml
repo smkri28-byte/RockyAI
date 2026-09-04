@@ -1,0 +1,54 @@
+name: "💬 RockyAI Feedback & Suggestions"
+description: Share your thoughts, ideas, or general feedback to help improve RockyAI.
+title: "[Feedback]: "
+labels: ["feedback", "enhancement"]
+assignees: ["smkri28-byte"] # 👈 Replace this with your actual GitHub username
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Thank you for helping improve RockyAI! 🚀
+        Please fill out the form fields below to share your experience.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 🌟 What is your feedback about?
+      description: Please select the area that best fits your feedback.
+      multiple: true
+      options:
+        - "AI Responses / Accuracy"
+        - "API Integration"
+        - "Chat History / Data Persistence"
+        - "User Interface / Design"
+        - "Performance / Speed"
+        - "Feature Request / Idea"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Description
+      description: Provide a clear and concise description of your feedback or suggestion.
+      placeholder: "Example: I noticed that the chat history clears out when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Proposed Solution or Improvement
+      description: If you have an idea of how we could improve RockyAI, please describe it here.
+      placeholder: "Example: It would be great if we could download chat logs as a .txt file."
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📌 Additional Context
+      description: Add any other context, links, screenshots, or logs here (you can drag and drop images).
+    validations:
+      required: false
