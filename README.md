@@ -4,8 +4,9 @@ Welcome to **RockyAI**! This project provides AI-powered responses and an intuit
 
 ## 🔗 Quick Links
 
-* **Live Demo (v1.2 - Latest):**https://rockyai-netv1-2.onrender.com
+* **Live Demo (v1.2):**https://rockyai-netv1-2.onrender.com
 * **Live Demo (v1.1):**https://rockyaiv1-1onrender.com
+* **Live Demo (v1-3 - Latest):**https://rockyai-netv1-3.onrender.com
 
 ## 💬 Feedback
 
