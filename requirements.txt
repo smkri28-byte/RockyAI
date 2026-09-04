@@ -3,4 +3,3 @@ google-genai
 Werkzeug
 PyPDF2
 reportlab
-gunicorn
