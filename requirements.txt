@@ -1,5 +1,6 @@
-Flask
+streamlit
 google-genai
+Werkzeug
 PyPDF2
-graphviz
+reportlab
 gunicorn
