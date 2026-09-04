@@ -26,17 +26,17 @@ from reportlab.lib import colors
 
 
 # ============================================================
-# ROCKYAI v3.0
-# STREAMLIT EDITION
+# ROCKYAI v1-3
+# AI-POWERED LEARNING WORKSPACE
 # ============================================================
 
 
 # ============================================================
-# 1. PAGE CONFIG
+# 1. STREAMLIT CONFIG
 # ============================================================
 
 st.set_page_config(
-    page_title="RockyAI",
+    page_title="RockyAI v1-3",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -104,6 +104,18 @@ st.markdown("""
 }
 
 
+.rocky-version {
+
+    color: #63d8ff;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    letter-spacing: 1px;
+}
+
+
 .rocky-subtitle {
 
     color: #94a3b8;
@@ -118,7 +130,7 @@ st.markdown("""
 
 .hero {
 
-    padding: 28px;
+    padding: 30px;
 
     border-radius: 22px;
 
@@ -134,14 +146,24 @@ st.markdown("""
         rgba(99,216,255,0.15);
 
     margin-bottom: 25px;
+
+    box-shadow:
+        0 20px 60px
+        rgba(0,0,0,0.25);
 }
 
 
 .hero h1 {
 
-    font-size: 42px;
+    font-size:
+        clamp(
+            30px,
+            5vw,
+            46px
+        );
 
-    margin-bottom: 5px;
+    margin:
+        5px 0 8px;
 
     background:
         linear-gradient(
@@ -164,7 +186,7 @@ st.markdown("""
 }
 
 
-/* CARDS */
+/* FEATURE CARDS */
 
 .feature-card {
 
@@ -173,22 +195,25 @@ st.markdown("""
     border-radius: 17px;
 
     background:
-        rgba(15,23,42,0.82);
+        rgba(
+            15,
+            23,
+            42,
+            0.82
+        );
 
     border:
         1px solid
-        rgba(255,255,255,0.07);
+        rgba(
+            255,
+            255,
+            255,
+            0.07
+        );
 
     min-height: 145px;
 
     transition: 0.2s;
-}
-
-
-.feature-card:hover {
-
-    border-color:
-        rgba(99,216,255,0.35);
 }
 
 
@@ -238,7 +263,7 @@ st.markdown("""
 }
 
 
-/* PDF READY */
+/* PDF */
 
 .pdf-ready {
 
@@ -283,9 +308,39 @@ st.markdown("""
 
     color: #64748b;
 
-    padding: 30px;
+    padding: 35px;
 
     font-size: 12px;
+}
+
+
+/* BUTTON */
+
+.stButton > button {
+
+    border-radius: 12px;
+
+    font-weight: 700;
+}
+
+
+/* FILE UPLOADER */
+
+[data-testid="stFileUploader"] {
+
+    border-radius: 14px;
+}
+
+
+/* MOBILE */
+
+@media(max-width: 700px) {
+
+    .hero {
+
+        padding: 22px;
+    }
+
 }
 
 </style>
@@ -298,7 +353,7 @@ st.markdown("""
 
 DB_FILE = os.environ.get(
     "DB_FILE",
-    "rockyai.db"
+    "rockyai_v1_3.db"
 )
 
 
@@ -318,6 +373,7 @@ def init_db():
     conn = get_db()
 
     cursor = conn.cursor()
+
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -364,7 +420,7 @@ init_db()
 
 
 # ============================================================
-# 4. ADMIN CREATION
+# 4. ADMIN ACCOUNT
 # ============================================================
 
 def create_admin():
@@ -412,7 +468,9 @@ def create_admin():
             """,
             (
                 username,
-                generate_password_hash(password),
+                generate_password_hash(
+                    password
+                ),
                 datetime.now().isoformat()
             )
         )
@@ -452,8 +510,8 @@ def ask_gemini(prompt):
 
         return (
             "⚠️ Gemini API is not configured.\n\n"
-            "Add GEMINI_API_KEY to your "
-            "Streamlit/Render environment variables."
+            "Please add GEMINI_API_KEY "
+            "to your Render Environment Variables."
         )
 
 
@@ -478,7 +536,7 @@ def ask_gemini(prompt):
         )
 
 
-    except Exception as e:
+    except Exception:
 
         return (
             "⚠️ RockyAI could not process "
@@ -490,7 +548,10 @@ def ask_gemini(prompt):
 # 6. LOGIN
 # ============================================================
 
-def login_user(username, password):
+def login_user(
+    username,
+    password
+):
 
     conn = get_db()
 
@@ -691,7 +752,6 @@ def create_pdf(
         topMargin=50,
 
         bottomMargin=50
-
     )
 
 
@@ -700,7 +760,7 @@ def create_pdf(
 
     story.append(
         Paragraph(
-            "ROCKYAI",
+            "ROCKYAI v1-3",
             title_style
         )
     )
@@ -708,18 +768,25 @@ def create_pdf(
 
     story.append(
         Paragraph(
-            html.escape(title),
+            html.escape(
+                title
+            ),
             heading_style
         )
     )
 
 
     story.append(
-        Spacer(1, 10)
+        Spacer(
+            1,
+            10
+        )
     )
 
 
-    for raw_line in content.split("\n"):
+    for raw_line in content.split(
+        "\n"
+    ):
 
         line = raw_line.strip()
 
@@ -727,32 +794,29 @@ def create_pdf(
         if not line:
 
             story.append(
-                Spacer(1, 5)
+                Spacer(
+                    1,
+                    5
+                )
             )
 
             continue
-
-
-        safe_line = html.escape(
-            line
-        )
 
 
         if line.startswith(
             "###"
         ):
 
-            text = html.escape(
-                line.replace(
-                    "###",
-                    "",
-                    1
-                ).strip()
-            )
+            text = line.replace(
+                "###",
+                "",
+                1
+            ).strip()
+
 
             story.append(
                 Paragraph(
-                    text,
+                    html.escape(text),
                     heading_style
                 )
             )
@@ -762,17 +826,16 @@ def create_pdf(
             "##"
         ):
 
-            text = html.escape(
-                line.replace(
-                    "##",
-                    "",
-                    1
-                ).strip()
-            )
+            text = line.replace(
+                "##",
+                "",
+                1
+            ).strip()
+
 
             story.append(
                 Paragraph(
-                    text,
+                    html.escape(text),
                     heading_style
                 )
             )
@@ -782,49 +845,32 @@ def create_pdf(
             "#"
         ):
 
-            text = html.escape(
-                line.replace(
-                    "#",
-                    "",
-                    1
-                ).strip()
-            )
+            text = line.replace(
+                "#",
+                "",
+                1
+            ).strip()
+
 
             story.append(
                 Paragraph(
-                    text,
+                    html.escape(text),
                     heading_style
                 )
             )
 
 
-        elif line.startswith(
-            "-"
+        elif (
+            line.startswith("-")
+            or line.startswith("*")
         ):
 
-            text = html.escape(
-                line[1:].strip()
-            )
+            text = line[1:].strip()
+
 
             story.append(
                 Paragraph(
-                    "• " + text,
-                    bullet_style
-                )
-            )
-
-
-        elif line.startswith(
-            "*"
-        ):
-
-            text = html.escape(
-                line[1:].strip()
-            )
-
-            story.append(
-                Paragraph(
-                    "• " + text,
+                    "• " + html.escape(text),
                     bullet_style
                 )
             )
@@ -834,20 +880,23 @@ def create_pdf(
 
             story.append(
                 Paragraph(
-                    safe_line,
+                    html.escape(line),
                     body_style
                 )
             )
 
 
     story.append(
-        Spacer(1, 20)
+        Spacer(
+            1,
+            20
+        )
     )
 
 
     story.append(
         Paragraph(
-            "Generated by RockyAI",
+            "Generated by RockyAI v1-3",
             ParagraphStyle(
                 "Footer",
                 parent=body_style,
@@ -870,26 +919,30 @@ def create_pdf(
 
 
 # ============================================================
-# 9. LOGIN SCREEN
+# 9. LOGIN PAGE
 # ============================================================
 
-def show_login():
+def login_page():
 
     st.markdown(
         """
         <div class="hero">
 
-        <div class="rocky-logo">
-        ROCKYAI
-        </div>
+            <div class="rocky-logo">
+                ROCKYAI
+            </div>
 
-        <h1>
-        Your AI Learning Workspace 🚀
-        </h1>
+            <div class="rocky-version">
+                VERSION 1-3
+            </div>
 
-        <p>
-        Learn • Practice • Create • Understand
-        </p>
+            <h1>
+                Your AI Learning Workspace 🚀
+            </h1>
+
+            <p>
+                Learn • Practice • Create • Understand
+            </p>
 
         </div>
         """,
@@ -897,7 +950,7 @@ def show_login():
     )
 
 
-    tab1, tab2 = st.tabs(
+    login_tab, register_tab = st.tabs(
         [
             "🔐 Login",
             "✨ Create Account"
@@ -905,11 +958,11 @@ def show_login():
     )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # LOGIN
-    # --------------------------------------------------------
+    # ========================================================
 
-    with tab1:
+    with login_tab:
 
         username = st.text_input(
             "Username",
@@ -957,28 +1010,29 @@ def show_login():
                 )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # REGISTER
-    # --------------------------------------------------------
+    # ========================================================
 
-    with tab2:
+    with register_tab:
 
-        new_username = st.text_input(
+        username = st.text_input(
             "New username",
-            key="new_username"
+            key="register_username"
         )
 
 
-        new_password = st.text_input(
+        password = st.text_input(
             "New password",
             type="password",
-            key="new_password"
+            key="register_password"
         )
 
 
-        confirm_password = st.text_input(
+        confirm = st.text_input(
             "Confirm password",
-            type="password"
+            type="password",
+            key="register_confirm"
         )
 
 
@@ -987,23 +1041,31 @@ def show_login():
             use_container_width=True
         ):
 
-            if len(new_username) < 3:
+            username = username.strip()
+
+
+            if len(username) < 3:
 
                 st.error(
-                    "Username must contain at least 3 characters."
+                    "Username must contain "
+                    "at least 3 characters."
                 )
 
-            elif len(new_password) < 8:
+
+            elif len(password) < 8:
 
                 st.error(
-                    "Password must contain at least 8 characters."
+                    "Password must contain "
+                    "at least 8 characters."
                 )
 
-            elif new_password != confirm_password:
+
+            elif password != confirm:
 
                 st.error(
                     "Passwords do not match."
                 )
+
 
             else:
 
@@ -1022,12 +1084,13 @@ def show_login():
                             prompts_count,
                             created_at
                         )
-                        VALUES (?, ?, 'user', 0, ?)
+                        VALUES
+                        (?, ?, 'user', 0, ?)
                         """,
                         (
-                            new_username.strip(),
+                            username,
                             generate_password_hash(
-                                new_password
+                                password
                             ),
                             datetime.now().isoformat()
                         )
@@ -1036,9 +1099,9 @@ def show_login():
 
                     conn.commit()
 
+
                     st.success(
-                        "Account created! "
-                        "You can now log in."
+                        "Account created successfully!"
                     )
 
 
@@ -1058,12 +1121,22 @@ def show_login():
 # 10. SIDEBAR
 # ============================================================
 
-def sidebar():
+def show_sidebar():
 
     with st.sidebar:
 
         st.markdown(
-            '<div class="rocky-logo">ROCKYAI</div>',
+            '<div class="rocky-logo">'
+            'ROCKYAI'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+
+        st.markdown(
+            '<div class="rocky-version">'
+            'VERSION 1-3'
+            '</div>',
             unsafe_allow_html=True
         )
 
@@ -1080,7 +1153,9 @@ def sidebar():
             f"""
             👤 **{st.session_state.username}**
 
-            <span class="online">● Online</span>
+            <span class="online">
+            ● Online
+            </span>
             """,
             unsafe_allow_html=True
         )
@@ -1106,16 +1181,18 @@ def sidebar():
 
             st.divider()
 
-            admin_page = st.radio(
+
+            admin_option = st.radio(
                 "Administration",
-                [
-                    "👑 Admin Panel"
-                ]
+                ["👑 Admin Panel"]
             )
 
-            if admin_page:
 
-                page = admin_page
+            if admin_option:
+
+                if st.session_state.role == "admin":
+
+                    page = admin_option
 
 
         st.divider()
@@ -1163,21 +1240,29 @@ def workspace():
     )
 
 
+    # ========================================================
+    # HERO
+    # ========================================================
+
     st.markdown(
         """
         <div class="hero">
 
-        <div class="rocky-logo">
-        ROCKYAI
-        </div>
+            <div class="rocky-logo">
+                ROCKYAI
+            </div>
 
-        <h1>
-        Your AI Learning Workspace 🚀
-        </h1>
+            <div class="rocky-version">
+                VERSION 1-3
+            </div>
 
-        <p>
-        Learn. Create. Practice. Build.
-        </p>
+            <h1>
+                Your AI Learning Workspace 🚀
+            </h1>
+
+            <p>
+                Learn. Create. Practice. Build.
+            </p>
 
         </div>
         """,
@@ -1228,7 +1313,7 @@ def workspace():
 
 
     # ========================================================
-    # FEATURE CARDS
+    # FEATURES
     # ========================================================
 
     cards = [
@@ -1248,67 +1333,67 @@ def workspace():
         (
             "📄",
             "PDF Generator",
-            "Create printable AI-generated documents."
+            "Create printable AI documents."
         ),
 
         (
             "📝",
             "Quiz Generator",
-            "Create interactive practice questions."
+            "Create practice questions."
         ),
 
         (
             "📚",
             "Sample Paper",
-            "Generate structured exam papers."
+            "Generate exam papers."
         ),
 
         (
             "💻",
             "Code Generator",
-            "Build and understand programming projects."
+            "Create programming solutions."
         ),
 
         (
             "🧠",
             "Mind Map",
-            "Organize complex topics visually."
+            "Organize complex topics."
         ),
 
         (
             "🧪",
             "Science Tools",
-            "Explore a chemistry reference."
+            "Explore chemistry information."
         )
 
     ]
 
 
-    columns = st.columns(4)
+    cols = st.columns(4)
 
 
-    for i, card in enumerate(cards):
+    for index, card in enumerate(cards):
 
-        icon, title, text = card
+        icon, title, description = card
 
 
-        with columns[i % 4]:
+        with cols[index % 4]:
 
             st.markdown(
                 f"""
                 <div class="feature-card">
 
-                <div class="feature-icon">
-                {icon}
-                </div>
+                    <div class="feature-icon">
+                        {icon}
+                    </div>
 
-                <div class="feature-title">
-                {title}
-                </div>
+                    <div class="feature-title">
+                        {title}
+                    </div>
 
-                <div class="feature-text">
-                {text}
-                </div>
+                    <div class="feature-text">
+                        {description}
+                    </div>
 
                 </div>
                 """,
@@ -1320,15 +1405,17 @@ def workspace():
 
 
     # ========================================================
-    # TOOL
+    # TOOL SELECTOR
     # ========================================================
 
-    st.markdown("## 🛠️ AI Workspace")
+    st.markdown(
+        "## 🛠️ RockyAI Workspace"
+    )
 
 
     tool = st.selectbox(
 
-        "Choose a RockyAI tool",
+        "Choose a tool",
 
         [
             "🤖 Ask RockyAI",
@@ -1355,7 +1442,7 @@ def workspace():
 
         uploaded_pdf = st.file_uploader(
 
-            "Upload your PDF",
+            "📎 Upload your study PDF",
 
             type=["pdf"]
 
@@ -1363,14 +1450,14 @@ def workspace():
 
 
     # ========================================================
-    # QUERY
+    # USER INPUT
     # ========================================================
 
     query = st.text_area(
 
         "What do you want RockyAI to do?",
 
-        height=140,
+        height=150,
 
         placeholder=(
             "Example: Explain photosynthesis "
@@ -1379,6 +1466,10 @@ def workspace():
 
     )
 
+
+    # ========================================================
+    # RUN
+    # ========================================================
 
     if st.button(
 
@@ -1392,7 +1483,7 @@ def workspace():
 
         if tool == "📖 PDF Study":
 
-            if not uploaded_pdf:
+            if uploaded_pdf is None:
 
                 st.warning(
                     "Please upload a PDF first."
@@ -1401,16 +1492,7 @@ def workspace():
                 return
 
 
-            if not query.strip():
-
-                st.warning(
-                    "Please enter a question."
-                )
-
-                return
-
-
-        elif not query.strip():
+        if not query.strip():
 
             st.warning(
                 "Please enter a request."
@@ -1427,13 +1509,14 @@ def workspace():
 
             prompt = f"""
 
-You are RockyAI,
+You are RockyAI v1-3,
 an AI-powered learning assistant.
 
-Answer the user's request clearly.
+Answer the following request
+clearly and accurately.
 
 Use headings and bullet points
-when useful.
+when helpful.
 
 User request:
 
@@ -1462,6 +1545,7 @@ User request:
             st.markdown(
                 "### 🤖 RockyAI"
             )
+
 
             st.markdown(
                 f"""
@@ -1502,7 +1586,7 @@ User request:
                 if not text.strip():
 
                     st.error(
-                        "No readable text was found in the PDF."
+                        "No readable text was found."
                     )
 
                     return
@@ -1510,20 +1594,19 @@ User request:
 
                 prompt = f"""
 
-You are RockyAI.
+You are RockyAI v1-3.
 
 Answer the user's question
 using the uploaded document.
 
-If the answer is not present
-in the document, say so.
+If the answer cannot be found
+in the document, say so clearly.
 
-USER QUESTION:
+Question:
 
 {query}
 
-
-DOCUMENT:
+Document:
 
 {text[:12000]}
 
@@ -1531,7 +1614,7 @@ DOCUMENT:
 
 
                 with st.spinner(
-                    "Reading your PDF..."
+                    "RockyAI is reading your PDF..."
                 ):
 
                     result = ask_gemini(
@@ -1579,7 +1662,7 @@ DOCUMENT:
 
             prompt = f"""
 
-You are RockyAI,
+You are RockyAI v1-3,
 an educational document generator.
 
 Create professional,
@@ -1591,13 +1674,13 @@ User request:
 
 Requirements:
 
-- Create a clear title.
-- Use headings.
-- Use sections.
-- Use bullet points where useful.
-- Make it student-friendly.
-- Make it suitable for printing.
-- Do not add unnecessary commentary.
+- Clear title
+- Headings
+- Organized sections
+- Bullet points
+- Student-friendly language
+- Printable format
+- Useful educational content
 
 Return only the document content.
 
@@ -1605,7 +1688,7 @@ Return only the document content.
 
 
             with st.spinner(
-                "Creating your PDF..."
+                "RockyAI is generating your PDF..."
             ):
 
                 result = ask_gemini(
@@ -1621,27 +1704,27 @@ Return only the document content.
             )
 
 
-            pdf = create_pdf(
-                query[:80],
-                result
-            )
-
-
             st.markdown(
                 """
                 <div class="pdf-ready">
 
-                <h2>
-                📄 PDF Ready!
-                </h2>
+                    <h2>
+                        📄 PDF Ready!
+                    </h2>
 
-                <p>
-                RockyAI generated your printable document.
-                </p>
+                    <p>
+                        RockyAI v1-3 created your document.
+                    </p>
 
                 </div>
                 """,
                 unsafe_allow_html=True
+            )
+
+
+            pdf = create_pdf(
+                query[:80],
+                result
             )
 
 
@@ -1651,7 +1734,9 @@ Return only the document content.
 
                 data=pdf,
 
-                file_name="RockyAI_Generated.pdf",
+                file_name=(
+                    "RockyAI_v1-3_Generated.pdf"
+                ),
 
                 mime="application/pdf",
 
@@ -1661,7 +1746,7 @@ Return only the document content.
 
 
             with st.expander(
-                "👀 Preview generated content"
+                "👀 Preview Document"
             ):
 
                 st.write(result)
@@ -1697,13 +1782,13 @@ Format:
   }}
 ]
 
-Do not use Markdown.
+Do not include Markdown.
 
 """
 
 
             with st.spinner(
-                "Creating quiz..."
+                "Creating your quiz..."
             ):
 
                 raw = ask_gemini(
@@ -1740,20 +1825,23 @@ Do not use Markdown.
                 answers = []
 
 
-                for i, q in enumerate(
+                for i, question in enumerate(
                     questions
                 ):
 
                     st.markdown(
-                        f"**Q{i+1}. {q['question']}**"
+                        f"""
+                        **Q{i + 1}.**
+                        {question["question"]}
+                        """
                     )
 
 
                     selected = st.radio(
 
-                        "Choose an answer",
+                        "Select an answer",
 
-                        q["options"],
+                        question["options"],
 
                         key=f"quiz_{i}"
 
@@ -1766,25 +1854,57 @@ Do not use Markdown.
 
 
                 if st.button(
-                    "🏆 Check Quiz"
+                    "🏆 Check My Score"
                 ):
 
                     score = 0
 
 
-                    for i, q in enumerate(
+                    for i, question in enumerate(
                         questions
                     ):
 
                         if answers[i].startswith(
-                            q["answer"]
+                            question["answer"]
                         ):
 
                             score += 1
 
 
+                    percentage = int(
+                        (
+                            score /
+                            len(questions)
+                        ) * 100
+                    )
+
+
+                    if percentage == 100:
+
+                        st.balloons()
+
+                        message = (
+                            "🏆 Perfect score!"
+                        )
+
+                    elif percentage >= 60:
+
+                        message = (
+                            "🔥 Great job!"
+                        )
+
+                    else:
+
+                        message = (
+                            "📚 Keep practicing!"
+                        )
+
+
                     st.success(
-                        f"Score: {score}/{len(questions)}"
+                        f"Score: {score}/"
+                        f"{len(questions)} "
+                        f"({percentage}%)\n\n"
+                        f"{message}"
                     )
 
 
@@ -1792,14 +1912,15 @@ Do not use Markdown.
                         st.session_state.username,
                         "Quiz Generator",
                         query,
-                        f"Score: {score}/{len(questions)}"
+                        f"Score: {score}/"
+                        f"{len(questions)}"
                     )
 
 
             except Exception:
 
                 st.error(
-                    "Quiz formatting failed. "
+                    "The quiz could not be generated. "
                     "Please try again."
                 )
 
@@ -1812,7 +1933,10 @@ Do not use Markdown.
 
             prompt = f"""
 
-Create a professional educational sample paper.
+You are RockyAI v1-3.
+
+Create a professional educational
+sample question paper.
 
 Requirements:
 
@@ -1827,8 +1951,6 @@ Include:
 - Marks
 - Different question types
 - Appropriate difficulty
-
-Make it suitable for students.
 
 """
 
@@ -1868,7 +1990,7 @@ Make it suitable for students.
 
 
             pdf = create_pdf(
-                "RockyAI Sample Paper",
+                "RockyAI v1-3 Sample Paper",
                 result
             )
 
@@ -1879,7 +2001,9 @@ Make it suitable for students.
 
                 data=pdf,
 
-                file_name="RockyAI_Sample_Paper.pdf",
+                file_name=(
+                    "RockyAI_v1-3_Sample_Paper.pdf"
+                ),
 
                 mime="application/pdf"
 
@@ -1894,24 +2018,24 @@ Make it suitable for students.
 
             prompt = f"""
 
-You are RockyAI,
+You are RockyAI v1-3,
 a programming assistant.
 
 Generate clean,
-understandable and commented code.
+commented and understandable code.
 
 User requirement:
 
 {query}
 
-Explain the important parts
-after the code.
+After the code,
+explain the important parts.
 
 """
 
 
             with st.spinner(
-                "Writing code..."
+                "Writing your code..."
             ):
 
                 result = ask_gemini(
@@ -1945,7 +2069,7 @@ after the code.
 
             prompt = f"""
 
-Create a concise text-based mind map
+Create a concise text mind map
 for:
 
 {query}
@@ -1964,7 +2088,7 @@ MAIN TOPIC
 
 
             with st.spinner(
-                "Building mind map..."
+                "Building your mind map..."
             ):
 
                 result = ask_gemini(
@@ -2056,7 +2180,7 @@ MAIN TOPIC
 def history_page():
 
     st.title(
-        "💬 Chat History"
+        "💬 RockyAI v1-3 History"
     )
 
 
@@ -2084,7 +2208,7 @@ def history_page():
     if not chats:
 
         st.info(
-            "You don't have any AI history yet."
+            "No AI activity yet."
         )
 
         return
@@ -2093,7 +2217,8 @@ def history_page():
     for chat in chats:
 
         with st.expander(
-            f"{chat['tool']} • {chat['timestamp']}"
+            f"{chat['tool']} • "
+            f"{chat['timestamp']}"
         ):
 
             st.markdown(
@@ -2121,7 +2246,7 @@ def history_page():
 def analytics_page():
 
     st.title(
-        "📊 RockyAI Analytics"
+        "📊 RockyAI v1-3 Analytics"
     )
 
 
@@ -2138,7 +2263,7 @@ def analytics_page():
     ).fetchone()
 
 
-    tool_counts = conn.execute(
+    tools = conn.execute(
         """
         SELECT
             tool,
@@ -2155,25 +2280,25 @@ def analytics_page():
     conn.close()
 
 
-    prompts = (
+    requests = (
         user["prompts_count"]
         if user
         else 0
     )
 
 
-    c1, c2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
 
-    with c1:
+    with col1:
 
         st.metric(
             "Total AI Requests",
-            prompts
+            requests
         )
 
 
-    with c2:
+    with col2:
 
         st.metric(
             "Available Tools",
@@ -2186,13 +2311,13 @@ def analytics_page():
     )
 
 
-    if tool_counts:
+    if tools:
 
-        for item in tool_counts:
+        for tool in tools:
 
             st.write(
-                f"**{item['tool']}** — "
-                f"{item['count']} requests"
+                f"**{tool['tool']}** — "
+                f"{tool['count']} requests"
             )
 
     else:
@@ -2209,7 +2334,7 @@ def analytics_page():
 def admin_page():
 
     st.title(
-        "👑 RockyAI Admin Panel"
+        "👑 RockyAI v1-3 Admin Panel"
     )
 
 
@@ -2274,20 +2399,29 @@ def admin_page():
 
                 if st.button(
                     "Delete",
-                    key=f"delete_{user['username']}"
+                    key=(
+                        "delete_"
+                        + user["username"]
+                    )
                 ):
 
                     conn = get_db()
 
 
                     conn.execute(
-                        "DELETE FROM chats WHERE username = ?",
+                        """
+                        DELETE FROM chats
+                        WHERE username = ?
+                        """,
                         (user["username"],)
                     )
 
 
                     conn.execute(
-                        "DELETE FROM users WHERE username = ?",
+                        """
+                        DELETE FROM users
+                        WHERE username = ?
+                        """,
                         (user["username"],)
                     )
 
@@ -2313,16 +2447,17 @@ def admin_page():
 
 
     st.info(
-        "RockyAI Streamlit Edition v3.0\n\n"
+        "RockyAI v1-3\n\n"
         "AI Engine: Gemini 2.5 Flash\n\n"
+        "Framework: Streamlit\n\n"
         "Database: SQLite\n\n"
-        "PDF Generator: ReportLab\n\n"
+        "PDF Engine: ReportLab\n\n"
         "Image Generation: Removed"
     )
 
 
 # ============================================================
-# 15. MAIN APP
+# 15. INITIALIZE SESSION
 # ============================================================
 
 if "logged_in" not in st.session_state:
@@ -2330,13 +2465,17 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 
+# ============================================================
+# 16. APPLICATION
+# ============================================================
+
 if not st.session_state.logged_in:
 
-    show_login()
+    login_page()
 
 else:
 
-    page = sidebar()
+    page = show_sidebar()
 
 
     if page == "🏠 Workspace":
@@ -2371,7 +2510,15 @@ else:
         """
         <div class="footer">
 
-        RockyAI • AI-Powered Learning Workspace<br>
+        <strong>
+        RockyAI v1-3
+        </strong>
+
+        <br>
+
+        AI-Powered Learning Workspace
+
+        <br><br>
 
         Learn smarter. Build faster. 🚀
 
