@@ -1,623 +1,278 @@
-import streamlit as st
-from google import genai
-from werkzeug.security import generate_password_hash, check_password_hash
-
-import sqlite3
-import PyPDF2
-import json
 import os
-import io
-import html
-
+import re
+import sqlite3
+from io import BytesIO
 from datetime import datetime
 
+import streamlit as st
+from google import genai
+from google.genai import types
+from werkzeug.security import generate_password_hash, check_password_hash
+
+from PyPDF2 import PdfReader
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate,
     Paragraph,
-    Spacer
+    Spacer,
+    PageBreak,
 )
-from reportlab.lib.styles import (
-    getSampleStyleSheet,
-    ParagraphStyle
-)
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib import colors
 
 
 # ============================================================
 # ROCKYAI v1-3
-# AI-POWERED LEARNING WORKSPACE
-# ============================================================
-
-
-# ============================================================
-# 1. STREAMLIT CONFIG
+# AI POWERED LEARNING ASSISTANT
 # ============================================================
 
 st.set_page_config(
     page_title="RockyAI v1-3",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 
 # ============================================================
-# 2. CUSTOM CSS
+# CUSTOM CSS
 # ============================================================
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 
 .stApp {
-
     background:
-        radial-gradient(
-            circle at top left,
-            #14213d 0%,
-            #070b14 42%,
-            #03050a 100%
-        );
-
+        radial-gradient(circle at top right, #10234a 0%, transparent 35%),
+        radial-gradient(circle at bottom left, #07152d 0%, transparent 40%),
+        #050810;
     color: #f8fafc;
 }
 
-
-/* SIDEBAR */
-
 [data-testid="stSidebar"] {
-
-    background:
-        linear-gradient(
-            180deg,
-            #07101f,
-            #030712
-        );
-
-    border-right:
-        1px solid
-        rgba(99,216,255,0.12);
+    background: linear-gradient(180deg, #07111f, #030712);
+    border-right: 1px solid #172554;
 }
 
-
-/* LOGO */
-
-.rocky-logo {
-
-    font-size: 34px;
-
-    font-weight: 900;
-
-    background:
-        linear-gradient(
-            90deg,
-            #62e6ff,
-            #7c8cff
-        );
-
-    -webkit-background-clip: text;
-
-    -webkit-text-fill-color: transparent;
-
-    margin-bottom: 5px;
+[data-testid="stSidebar"] * {
+    color: #e2e8f0;
 }
 
-
-.rocky-version {
-
-    color: #63d8ff;
-
-    font-size: 13px;
-
-    font-weight: 700;
-
-    letter-spacing: 1px;
+h1, h2, h3 {
+    color: #f8fafc;
 }
 
+.rocky-title {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin-bottom: 0;
+}
 
 .rocky-subtitle {
-
     color: #94a3b8;
-
-    font-size: 14px;
-
-    margin-bottom: 25px;
+    font-size: 17px;
+    margin-top: 4px;
 }
 
+.tool-card {
+    background: linear-gradient(
+        145deg,
+        rgba(15, 23, 42, 0.95),
+        rgba(7, 15, 30, 0.95)
+    );
+    border: 1px solid #1e3a5f;
+    border-radius: 18px;
+    padding: 22px;
+    margin-bottom: 18px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.25);
+}
 
-/* HERO */
-
-.hero {
-
-    padding: 30px;
-
-    border-radius: 22px;
-
+.hero-card {
     background:
         linear-gradient(
             135deg,
-            rgba(15,23,42,0.95),
-            rgba(8,15,30,0.85)
+            rgba(30, 64, 175, 0.25),
+            rgba(15, 23, 42, 0.9)
         );
-
-    border:
-        1px solid
-        rgba(99,216,255,0.15);
-
+    border: 1px solid #2563eb;
+    border-radius: 24px;
+    padding: 30px;
     margin-bottom: 25px;
-
-    box-shadow:
-        0 20px 60px
-        rgba(0,0,0,0.25);
 }
 
-
-.hero h1 {
-
-    font-size:
-        clamp(
-            30px,
-            5vw,
-            46px
-        );
-
-    margin:
-        5px 0 8px;
-
-    background:
-        linear-gradient(
-            90deg,
-            #ffffff,
-            #63d8ff
-        );
-
-    -webkit-background-clip: text;
-
-    -webkit-text-fill-color: transparent;
+.stat-card {
+    background: #0b1220;
+    border: 1px solid #1e293b;
+    border-radius: 15px;
+    padding: 18px;
+    text-align: center;
 }
 
-
-.hero p {
-
-    color: #94a3b8;
-
-    font-size: 16px;
-}
-
-
-/* FEATURE CARDS */
-
-.feature-card {
-
-    padding: 20px;
-
-    border-radius: 17px;
-
-    background:
-        rgba(
-            15,
-            23,
-            42,
-            0.82
-        );
-
-    border:
-        1px solid
-        rgba(
-            255,
-            255,
-            255,
-            0.07
-        );
-
-    min-height: 145px;
-
-    transition: 0.2s;
-}
-
-
-.feature-icon {
-
-    font-size: 28px;
-}
-
-
-.feature-title {
-
-    font-size: 17px;
-
+.stat-number {
+    font-size: 30px;
     font-weight: 800;
-
-    margin-top: 8px;
+    color: #60a5fa;
 }
 
-
-.feature-text {
-
+.stat-label {
     color: #94a3b8;
-
-    font-size: 13px;
-
-    margin-top: 5px;
 }
-
-
-/* OUTPUT */
-
-.output-box {
-
-    padding: 22px;
-
-    border-radius: 17px;
-
-    background: #050a13;
-
-    border:
-        1px solid
-        #1e293b;
-
-    margin-top: 20px;
-
-    line-height: 1.7;
-}
-
-
-/* PDF */
-
-.pdf-ready {
-
-    padding: 25px;
-
-    border-radius: 18px;
-
-    background:
-        rgba(
-            99,
-            216,
-            255,
-            0.05
-        );
-
-    border:
-        1px solid
-        rgba(
-            99,
-            216,
-            255,
-            0.25
-        );
-}
-
-
-/* STATUS */
-
-.online {
-
-    color: #4ade80;
-
-    font-weight: 700;
-}
-
-
-/* FOOTER */
 
 .footer {
-
     text-align: center;
-
     color: #64748b;
-
-    padding: 35px;
-
-    font-size: 12px;
-}
-
-
-/* BUTTON */
-
-.stButton > button {
-
-    border-radius: 12px;
-
-    font-weight: 700;
-}
-
-
-/* FILE UPLOADER */
-
-[data-testid="stFileUploader"] {
-
-    border-radius: 14px;
-}
-
-
-/* MOBILE */
-
-@media(max-width: 700px) {
-
-    .hero {
-
-        padding: 22px;
-    }
-
+    margin-top: 50px;
+    padding: 25px;
+    border-top: 1px solid #172033;
 }
 
 </style>
-""", unsafe_allow_html=True)
-
-
-# ============================================================
-# 3. DATABASE
-# ============================================================
-
-DB_FILE = os.environ.get(
-    "DB_FILE",
-    "rockyai_v1_3.db"
+""",
+    unsafe_allow_html=True,
 )
 
 
-def get_db():
+# ============================================================
+# DATABASE
+# ============================================================
 
-    conn = sqlite3.connect(
-        DB_FILE
-    )
+DB_NAME = "rockyai_v1_3.db"
 
+
+def get_connection():
+    conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
-
     return conn
 
 
-def init_db():
-
-    conn = get_db()
-
+def init_database():
+    conn = get_connection()
     cursor = conn.cursor()
 
-
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS users (
-
             username TEXT PRIMARY KEY,
-
             password_hash TEXT NOT NULL,
-
             role TEXT DEFAULT 'user',
-
             prompts_count INTEGER DEFAULT 0,
-
-            created_at TEXT
-
+            created_at TEXT NOT NULL
         )
-    """)
+        """
+    )
 
-
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS chats (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             username TEXT NOT NULL,
-
-            tool TEXT,
-
-            prompt TEXT,
-
-            response TEXT,
-
-            timestamp TEXT
-
+            tool TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            response TEXT NOT NULL,
+            timestamp TEXT NOT NULL
         )
-    """)
-
+        """
+    )
 
     conn.commit()
-
     conn.close()
 
 
-init_db()
+init_database()
 
 
 # ============================================================
-# 4. ADMIN ACCOUNT
+# ADMIN INITIALIZATION
 # ============================================================
 
-def create_admin():
-
-    username = os.environ.get(
-        "ADMIN_USERNAME"
-    )
-
-    password = os.environ.get(
-        "ADMIN_PASSWORD"
-    )
-
+def create_initial_admin():
+    username = os.getenv("ADMIN_USERNAME")
+    password = os.getenv("ADMIN_PASSWORD")
 
     if not username or not password:
-
         return
 
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    conn = get_db()
-
-
-    existing = conn.execute(
-        """
-        SELECT username
-        FROM users
-        WHERE username = ?
-        """,
-        (username,)
+    existing = cursor.execute(
+        "SELECT username FROM users WHERE username = ?",
+        (username,),
     ).fetchone()
 
-
     if not existing:
-
-        conn.execute(
+        cursor.execute(
             """
             INSERT INTO users
-            (
-                username,
-                password_hash,
-                role,
-                prompts_count,
-                created_at
-            )
-            VALUES (?, ?, 'admin', 0, ?)
+            (username, password_hash, role, prompts_count, created_at)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 username,
-                generate_password_hash(
-                    password
-                ),
-                datetime.now().isoformat()
-            )
+                generate_password_hash(password),
+                "admin",
+                0,
+                datetime.now().isoformat(),
+            ),
         )
 
-        conn.commit()
-
-
+    conn.commit()
     conn.close()
 
 
-create_admin()
+create_initial_admin()
 
 
 # ============================================================
-# 5. GEMINI
+# GEMINI CONFIGURATION
 # ============================================================
 
-API_KEY = os.environ.get(
-    "GEMINI_API_KEY"
-)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-
-if API_KEY:
-
-    client = genai.Client(
-        api_key=API_KEY
+if not GEMINI_API_KEY:
+    st.error(
+        "GEMINI_API_KEY is not configured. "
+        "Add it to your Render Environment Variables."
     )
-
-else:
-
-    client = None
+    st.stop()
 
 
-def ask_gemini(prompt):
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-    if not client:
-
-        return (
-            "⚠️ Gemini API is not configured.\n\n"
-            "Please add GEMINI_API_KEY "
-            "to your Render Environment Variables."
-        )
-
-
-    try:
-
-        response = client.models.generate_content(
-
-            model="gemini-2.5-flash",
-
-            contents=prompt
-
-        )
-
-
-        if response and response.text:
-
-            return response.text.strip()
-
-
-        return (
-            "RockyAI did not receive a response."
-        )
-
-
-    except Exception:
-
-        return (
-            "⚠️ RockyAI could not process "
-            "your request right now."
-        )
+MODEL_NAME = "gemini-2.5-flash"
 
 
 # ============================================================
-# 6. LOGIN
+# SESSION STATE
 # ============================================================
 
-def login_user(
-    username,
-    password
-):
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-    conn = get_db()
+if "username" not in st.session_state:
+    st.session_state.username = None
 
-
-    user = conn.execute(
-        """
-        SELECT
-            username,
-            password_hash,
-            role
-        FROM users
-        WHERE username = ?
-        """,
-        (username,)
-    ).fetchone()
-
-
-    conn.close()
-
-
-    if not user:
-
-        return None
-
-
-    if check_password_hash(
-        user["password_hash"],
-        password
-    ):
-
-        return {
-
-            "username": user["username"],
-
-            "role": user["role"]
-
-        }
-
-
-    return None
+if "role" not in st.session_state:
+    st.session_state.role = None
 
 
 # ============================================================
-# 7. SAVE CHAT
+# DATABASE HELPERS
 # ============================================================
 
-def save_chat(
-    username,
-    tool,
-    prompt,
-    response
-):
+def save_chat(username, tool, prompt, response):
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    conn = get_db()
-
-
-    conn.execute(
+    cursor.execute(
         """
         INSERT INTO chats
-        (
-            username,
-            tool,
-            prompt,
-            response,
-            timestamp
-        )
+        (username, tool, prompt, response, timestamp)
         VALUES (?, ?, ?, ?, ?)
         """,
         (
@@ -625,383 +280,231 @@ def save_chat(
             tool,
             prompt,
             response,
-            datetime.now().strftime(
-                "%Y-%m-%d %H:%M"
-            )
-        )
+            datetime.now().isoformat(),
+        ),
     )
 
-
-    conn.execute(
+    cursor.execute(
         """
         UPDATE users
-
-        SET prompts_count =
-            prompts_count + 1
-
+        SET prompts_count = prompts_count + 1
         WHERE username = ?
         """,
-        (username,)
+        (username,),
     )
 
-
     conn.commit()
-
     conn.close()
 
 
-# ============================================================
-# 8. PDF GENERATOR
-# ============================================================
-
-def create_pdf(
-    title,
-    content
-):
-
-    buffer = io.BytesIO()
-
-
-    styles = getSampleStyleSheet()
-
-
-    title_style = ParagraphStyle(
-
-        "RockyTitle",
-
-        parent=styles["Title"],
-
-        fontName="Helvetica-Bold",
-
-        fontSize=22,
-
-        leading=28,
-
-        alignment=TA_CENTER,
-
-        spaceAfter=20,
-
-        textColor=colors.HexColor(
-            "#145A7A"
-        )
-    )
-
-
-    heading_style = ParagraphStyle(
-
-        "RockyHeading",
-
-        parent=styles["Heading2"],
-
-        fontName="Helvetica-Bold",
-
-        fontSize=15,
-
-        leading=20,
-
-        spaceBefore=12,
-
-        spaceAfter=8,
-
-        textColor=colors.HexColor(
-            "#145A7A"
-        )
-    )
-
-
-    body_style = ParagraphStyle(
-
-        "RockyBody",
-
-        parent=styles["BodyText"],
-
-        fontName="Helvetica",
-
-        fontSize=10.5,
-
-        leading=16,
-
-        spaceAfter=8
-    )
-
-
-    bullet_style = ParagraphStyle(
-
-        "RockyBullet",
-
-        parent=body_style,
-
-        leftIndent=18,
-
-        firstLineIndent=-8,
-
-        spaceAfter=5
-    )
-
-
-    document = SimpleDocTemplate(
-
-        buffer,
-
-        pagesize=A4,
-
-        rightMargin=45,
-
-        leftMargin=45,
-
-        topMargin=50,
-
-        bottomMargin=50
-    )
-
-
-    story = []
-
-
-    story.append(
-        Paragraph(
-            "ROCKYAI v1-3",
-            title_style
-        )
-    )
-
-
-    story.append(
-        Paragraph(
-            html.escape(
-                title
-            ),
-            heading_style
-        )
-    )
-
-
-    story.append(
-        Spacer(
-            1,
-            10
-        )
-    )
-
-
-    for raw_line in content.split(
-        "\n"
-    ):
-
-        line = raw_line.strip()
-
-
-        if not line:
-
-            story.append(
-                Spacer(
-                    1,
-                    5
-                )
-            )
-
-            continue
-
-
-        if line.startswith(
-            "###"
-        ):
-
-            text = line.replace(
-                "###",
-                "",
-                1
-            ).strip()
-
-
-            story.append(
-                Paragraph(
-                    html.escape(text),
-                    heading_style
-                )
-            )
-
-
-        elif line.startswith(
-            "##"
-        ):
-
-            text = line.replace(
-                "##",
-                "",
-                1
-            ).strip()
-
-
-            story.append(
-                Paragraph(
-                    html.escape(text),
-                    heading_style
-                )
-            )
-
-
-        elif line.startswith(
-            "#"
-        ):
-
-            text = line.replace(
-                "#",
-                "",
-                1
-            ).strip()
-
-
-            story.append(
-                Paragraph(
-                    html.escape(text),
-                    heading_style
-                )
-            )
-
-
-        elif (
-            line.startswith("-")
-            or line.startswith("*")
-        ):
-
-            text = line[1:].strip()
-
-
-            story.append(
-                Paragraph(
-                    "• " + html.escape(text),
-                    bullet_style
-                )
-            )
-
-
-        else:
-
-            story.append(
-                Paragraph(
-                    html.escape(line),
-                    body_style
-                )
-            )
-
-
-    story.append(
-        Spacer(
-            1,
-            20
-        )
-    )
-
-
-    story.append(
-        Paragraph(
-            "Generated by RockyAI v1-3",
-            ParagraphStyle(
-                "Footer",
-                parent=body_style,
-                fontSize=8,
-                alignment=TA_CENTER,
-                textColor=colors.grey
-            )
-        )
-    )
-
-
-    document.build(
-        story
-    )
-
-
-    buffer.seek(0)
-
-    return buffer
+def get_user_count():
+    conn = get_connection()
+    count = conn.execute(
+        "SELECT COUNT(*) FROM users"
+    ).fetchone()[0]
+    conn.close()
+    return count
+
+
+def get_chat_count(username=None):
+    conn = get_connection()
+
+    if username:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM chats WHERE username = ?",
+            (username,),
+        ).fetchone()[0]
+    else:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM chats"
+        ).fetchone()[0]
+
+    conn.close()
+    return count
 
 
 # ============================================================
-# 9. LOGIN PAGE
+# GEMINI FUNCTION
 # ============================================================
 
-def login_page():
+def ask_gemini(prompt, system_instruction=None):
+    try:
+
+        config = None
+
+        if system_instruction:
+            config = types.GenerateContentConfig(
+                system_instruction=system_instruction
+            )
+
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config=config,
+        )
+
+        if not response or not response.text:
+            return "RockyAI did not receive a response."
+
+        return response.text.strip()
+
+    except Exception as e:
+        return f"RockyAI encountered an error: {str(e)}"
+
+
+# ============================================================
+# CLEAN GENERATED CODE
+# ============================================================
+
+def clean_code_response(code):
+    """
+    Removes Markdown code fences that Gemini may add.
+    Keeps the actual source code clean.
+    """
+
+    if not code:
+        return ""
+
+    code = code.strip()
+
+    # Remove ```python, ```javascript etc.
+    code = re.sub(
+        r"^```[a-zA-Z0-9_+#.-]*\s*",
+        "",
+        code,
+        flags=re.IGNORECASE,
+    )
+
+    # Remove closing ```
+    code = re.sub(
+        r"\s*```$",
+        "",
+        code,
+    )
+
+    return code.strip()
+
+
+# ============================================================
+# LOGIN FUNCTIONS
+# ============================================================
+
+def register_user(username, password):
+
+    username = username.strip()
+
+    if not username or not password:
+        return False, "Username and password are required."
+
+    if len(password) < 6:
+        return False, "Password must contain at least 6 characters."
+
+    conn = get_connection()
+
+    existing = conn.execute(
+        "SELECT username FROM users WHERE username = ?",
+        (username,),
+    ).fetchone()
+
+    if existing:
+        conn.close()
+        return False, "Username already exists."
+
+    conn.execute(
+        """
+        INSERT INTO users
+        (username, password_hash, role, prompts_count, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            username,
+            generate_password_hash(password),
+            "user",
+            0,
+            datetime.now().isoformat(),
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return True, "Account created successfully."
+
+
+def login_user(username, password):
+
+    conn = get_connection()
+
+    user = conn.execute(
+        """
+        SELECT username, password_hash, role
+        FROM users
+        WHERE username = ?
+        """,
+        (username,),
+    ).fetchone()
+
+    conn.close()
+
+    if not user:
+        return False
+
+    if check_password_hash(user["password_hash"], password):
+
+        st.session_state.logged_in = True
+        st.session_state.username = user["username"]
+        st.session_state.role = user["role"]
+
+        return True
+
+    return False
+
+
+# ============================================================
+# AUTH SCREEN
+# ============================================================
+
+def show_auth():
 
     st.markdown(
         """
-        <div class="hero">
-
-            <div class="rocky-logo">
-                ROCKYAI
+        <div class="hero-card">
+            <div class="rocky-title">🤖 RockyAI</div>
+            <div class="rocky-subtitle">
+                Your AI-powered learning workspace
             </div>
-
-            <div class="rocky-version">
-                VERSION 1-3
-            </div>
-
-            <h1>
-                Your AI Learning Workspace 🚀
-            </h1>
-
-            <p>
-                Learn • Practice • Create • Understand
-            </p>
-
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-
-    login_tab, register_tab = st.tabs(
-        [
-            "🔐 Login",
-            "✨ Create Account"
-        ]
+    tab1, tab2 = st.tabs(
+        ["🔐 Login", "📝 Create Account"]
     )
 
-
-    # ========================================================
-    # LOGIN
-    # ========================================================
-
-    with login_tab:
+    with tab1:
 
         username = st.text_input(
             "Username",
-            key="login_username"
+            key="login_username",
         )
-
 
         password = st.text_input(
             "Password",
             type="password",
-            key="login_password"
+            key="login_password",
         )
 
-
         if st.button(
-            "🚀 Sign In",
-            use_container_width=True
+            "Login to RockyAI",
+            use_container_width=True,
+            type="primary",
         ):
 
-            user = login_user(
-                username.strip(),
-                password
-            )
+            if login_user(username, password):
 
-
-            if user:
-
-                st.session_state.logged_in = True
-
-                st.session_state.username = (
-                    user["username"]
-                )
-
-                st.session_state.role = (
-                    user["role"]
-                )
-
+                st.success("Login successful!")
                 st.rerun()
-
 
             else:
 
@@ -1009,116 +512,168 @@ def login_page():
                     "Invalid username or password."
                 )
 
+    with tab2:
 
-    # ========================================================
-    # REGISTER
-    # ========================================================
-
-    with register_tab:
-
-        username = st.text_input(
-            "New username",
-            key="register_username"
+        new_username = st.text_input(
+            "Choose username",
+            key="register_username",
         )
 
-
-        password = st.text_input(
-            "New password",
+        new_password = st.text_input(
+            "Choose password",
             type="password",
-            key="register_password"
+            key="register_password",
         )
 
-
-        confirm = st.text_input(
+        confirm_password = st.text_input(
             "Confirm password",
             type="password",
-            key="register_confirm"
+            key="confirm_password",
         )
 
-
         if st.button(
-            "✨ Create Account",
-            use_container_width=True
+            "Create Account",
+            use_container_width=True,
         ):
 
-            username = username.strip()
+            if new_password != confirm_password:
 
-
-            if len(username) < 3:
-
-                st.error(
-                    "Username must contain "
-                    "at least 3 characters."
-                )
-
-
-            elif len(password) < 8:
-
-                st.error(
-                    "Password must contain "
-                    "at least 8 characters."
-                )
-
-
-            elif password != confirm:
-
-                st.error(
-                    "Passwords do not match."
-                )
-
+                st.error("Passwords do not match.")
 
             else:
 
-                conn = get_db()
+                success, message = register_user(
+                    new_username,
+                    new_password,
+                )
 
-
-                try:
-
-                    conn.execute(
-                        """
-                        INSERT INTO users
-                        (
-                            username,
-                            password_hash,
-                            role,
-                            prompts_count,
-                            created_at
-                        )
-                        VALUES
-                        (?, ?, 'user', 0, ?)
-                        """,
-                        (
-                            username,
-                            generate_password_hash(
-                                password
-                            ),
-                            datetime.now().isoformat()
-                        )
-                    )
-
-
-                    conn.commit()
-
-
-                    st.success(
-                        "Account created successfully!"
-                    )
-
-
-                except sqlite3.IntegrityError:
-
-                    st.error(
-                        "That username already exists."
-                    )
-
-
-                finally:
-
-                    conn.close()
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
 
 
 # ============================================================
-# 10. SIDEBAR
+# PDF TEXT EXTRACTION
+# ============================================================
+
+def extract_pdf_text(uploaded_file):
+
+    try:
+
+        reader = PdfReader(uploaded_file)
+
+        text = ""
+
+        for page in reader.pages:
+
+            page_text = page.extract_text()
+
+            if page_text:
+                text += page_text + "\n"
+
+            if len(text) >= 15000:
+                break
+
+        return text[:15000]
+
+    except Exception as e:
+
+        return f"Could not read PDF: {e}"
+
+
+# ============================================================
+# PDF GENERATOR
+# ============================================================
+
+def create_pdf(title, content):
+
+    buffer = BytesIO()
+
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "RockyTitle",
+        parent=styles["Title"],
+        alignment=TA_CENTER,
+        fontSize=22,
+        leading=28,
+        spaceAfter=20,
+    )
+
+    body_style = ParagraphStyle(
+        "RockyBody",
+        parent=styles["BodyText"],
+        fontSize=10.5,
+        leading=16,
+        spaceAfter=9,
+    )
+
+    story = []
+
+    story.append(
+        Paragraph(
+            title,
+            title_style,
+        )
+    )
+
+    story.append(
+        Paragraph(
+            "Generated by RockyAI v1-3",
+            ParagraphStyle(
+                "Subtitle",
+                parent=body_style,
+                alignment=TA_CENTER,
+                fontSize=9,
+            ),
+        )
+    )
+
+    story.append(Spacer(1, 12))
+
+    lines = content.split("\n")
+
+    for line in lines:
+
+        line = line.strip()
+
+        if not line:
+            story.append(Spacer(1, 6))
+            continue
+
+        safe_line = (
+            line
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+        story.append(
+            Paragraph(
+                safe_line,
+                body_style,
+            )
+        )
+
+    document.build(story)
+
+    buffer.seek(0)
+
+    return buffer
+
+
+# ============================================================
+# SIDEBAR
 # ============================================================
 
 def show_sidebar():
@@ -1126,297 +681,89 @@ def show_sidebar():
     with st.sidebar:
 
         st.markdown(
-            '<div class="rocky-logo">'
-            'ROCKYAI'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-
-        st.markdown(
-            '<div class="rocky-version">'
-            'VERSION 1-3'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-
-        st.markdown(
-            '<div class="rocky-subtitle">'
-            'AI-Powered Learning Workspace'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-
-        st.markdown(
-            f"""
-            👤 **{st.session_state.username}**
-
-            <span class="online">
-            ● Online
-            </span>
+            """
+            <div style="
+                font-size:28px;
+                font-weight:800;
+                color:#60a5fa;
+                margin-bottom:4px;
+            ">
+                🤖 RockyAI
+            </div>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
+        st.caption("v1-3 • AI Learning Workspace")
 
         st.divider()
 
-
-        page = st.radio(
-
-            "Navigation",
-
-            [
-                "🏠 Workspace",
-                "💬 History",
-                "📊 Analytics"
-            ]
-
+        st.write(
+            f"👤 **{st.session_state.username}**"
         )
-
 
         if st.session_state.role == "admin":
-
-            st.divider()
-
-
-            admin_option = st.radio(
-                "Administration",
-                ["👑 Admin Panel"]
-            )
-
-
-            if admin_option:
-
-                if st.session_state.role == "admin":
-
-                    page = admin_option
-
+            st.caption("👑 Administrator")
+        else:
+            st.caption("🎓 Student")
 
         st.divider()
 
+        pages = [
+            "🏠 Workspace",
+            "📜 History",
+            "📊 Analytics",
+        ]
+
+        if st.session_state.role == "admin":
+            pages.append("👑 Admin Panel")
+
+        page = st.radio(
+            "Navigation",
+            pages,
+        )
+
+        st.divider()
 
         if st.button(
             "🚪 Logout",
-            use_container_width=True
+            use_container_width=True,
         ):
 
-            st.session_state.clear()
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.session_state.role = None
 
             st.rerun()
-
 
         return page
 
 
 # ============================================================
-# 11. WORKSPACE
+# WORKSPACE
 # ============================================================
 
 def workspace():
 
-    conn = get_db()
-
-
-    user = conn.execute(
-        """
-        SELECT prompts_count
-        FROM users
-        WHERE username = ?
-        """,
-        (st.session_state.username,)
-    ).fetchone()
-
-
-    conn.close()
-
-
-    prompts_count = (
-        user["prompts_count"]
-        if user
-        else 0
-    )
-
-
-    # ========================================================
-    # HERO
-    # ========================================================
-
     st.markdown(
         """
-        <div class="hero">
+        <div class="hero-card">
 
-            <div class="rocky-logo">
-                ROCKYAI
-            </div>
+        <div class="rocky-title">
+        🤖 RockyAI
+        </div>
 
-            <div class="rocky-version">
-                VERSION 1-3
-            </div>
-
-            <h1>
-                Your AI Learning Workspace 🚀
-            </h1>
-
-            <p>
-                Learn. Create. Practice. Build.
-            </p>
+        <div class="rocky-subtitle">
+        Learn smarter. Create faster. Understand better.
+        </div>
 
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
-
-
-    # ========================================================
-    # STATS
-    # ========================================================
-
-    c1, c2, c3, c4 = st.columns(4)
-
-
-    with c1:
-
-        st.metric(
-            "AI Requests",
-            prompts_count
-        )
-
-
-    with c2:
-
-        st.metric(
-            "AI Tools",
-            "8"
-        )
-
-
-    with c3:
-
-        st.metric(
-            "PDF Generator",
-            "ON"
-        )
-
-
-    with c4:
-
-        st.metric(
-            "Status",
-            "🟢 Online"
-        )
-
-
-    st.divider()
-
-
-    # ========================================================
-    # FEATURES
-    # ========================================================
-
-    cards = [
-
-        (
-            "🤖",
-            "Ask RockyAI",
-            "Ask questions and get intelligent answers."
-        ),
-
-        (
-            "📖",
-            "PDF Study",
-            "Upload study material and ask questions."
-        ),
-
-        (
-            "📄",
-            "PDF Generator",
-            "Create printable AI documents."
-        ),
-
-        (
-            "📝",
-            "Quiz Generator",
-            "Create practice questions."
-        ),
-
-        (
-            "📚",
-            "Sample Paper",
-            "Generate exam papers."
-        ),
-
-        (
-            "💻",
-            "Code Generator",
-            "Create programming solutions."
-        ),
-
-        (
-            "🧠",
-            "Mind Map",
-            "Organize complex topics."
-        ),
-
-        (
-            "🧪",
-            "Science Tools",
-            "Explore chemistry information."
-        )
-
-    ]
-
-
-    cols = st.columns(4)
-
-
-    for index, card in enumerate(cards):
-
-        icon, title, description = card
-
-
-        with cols[index % 4]:
-
-            st.markdown(
-                f"""
-                <div class="feature-card">
-
-                    <div class="feature-icon">
-                        {icon}
-                    </div>
-
-                    <div class="feature-title">
-                        {title}
-                    </div>
-
-                    <div class="feature-text">
-                        {description}
-                    </div>
-
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-
-    st.write("")
-
-
-    # ========================================================
-    # TOOL SELECTOR
-    # ========================================================
-
-    st.markdown(
-        "## 🛠️ RockyAI Workspace"
-    )
-
 
     tool = st.selectbox(
-
-        "Choose a tool",
-
+        "Choose a RockyAI Tool",
         [
             "🤖 Ask RockyAI",
             "📖 PDF Study",
@@ -1425,1104 +772,966 @@ def workspace():
             "📚 Sample Paper",
             "💻 Code Generator",
             "🧠 Mind Map",
-            "🧪 Periodic Table"
-        ]
-
+            "🧪 Periodic Table",
+        ],
     )
 
+    st.divider()
+
 
     # ========================================================
-    # PDF UPLOAD
+    # ASK AI
     # ========================================================
 
-    uploaded_pdf = None
+    if tool == "🤖 Ask RockyAI":
 
+        st.subheader("🤖 Ask RockyAI")
 
-    if tool == "📖 PDF Study":
-
-        uploaded_pdf = st.file_uploader(
-
-            "📎 Upload your study PDF",
-
-            type=["pdf"]
-
+        prompt = st.text_area(
+            "What would you like to learn?",
+            height=180,
+            placeholder=(
+                "Example: Explain photosynthesis "
+                "for a Class 7 student."
+            ),
         )
 
+        if st.button(
+            "🚀 Ask RockyAI",
+            type="primary",
+        ):
 
-    # ========================================================
-    # USER INPUT
-    # ========================================================
-
-    query = st.text_area(
-
-        "What do you want RockyAI to do?",
-
-        height=150,
-
-        placeholder=(
-            "Example: Explain photosynthesis "
-            "for a Class 7 student."
-        )
-
-    )
-
-
-    # ========================================================
-    # RUN
-    # ========================================================
-
-    if st.button(
-
-        "🚀 Run RockyAI",
-
-        type="primary",
-
-        use_container_width=True
-
-    ):
-
-        if tool == "📖 PDF Study":
-
-            if uploaded_pdf is None:
+            if not prompt.strip():
 
                 st.warning(
-                    "Please upload a PDF first."
+                    "Please enter a question."
                 )
 
-                return
-
-
-        if not query.strip():
-
-            st.warning(
-                "Please enter a request."
-            )
-
-            return
-
-
-        # ====================================================
-        # ASK AI
-        # ====================================================
-
-        if tool == "🤖 Ask RockyAI":
-
-            prompt = f"""
-
-You are RockyAI v1-3,
-an AI-powered learning assistant.
-
-Answer the following request
-clearly and accurately.
-
-Use headings and bullet points
-when helpful.
-
-User request:
-
-{query}
-
-"""
-
-
-            with st.spinner(
-                "RockyAI is thinking..."
-            ):
-
-                result = ask_gemini(
-                    prompt
-                )
-
-
-            save_chat(
-                st.session_state.username,
-                "Ask AI",
-                query,
-                result
-            )
-
-
-            st.markdown(
-                "### 🤖 RockyAI"
-            )
-
-
-            st.markdown(
-                f"""
-                <div class="output-box">
-
-                {result}
-
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-
-        # ====================================================
-        # PDF STUDY
-        # ====================================================
-
-        elif tool == "📖 PDF Study":
-
-            try:
-
-                reader = PyPDF2.PdfReader(
-                    uploaded_pdf
-                )
-
-
-                text = ""
-
-
-                for page in reader.pages:
-
-                    text += (
-                        page.extract_text()
-                        or ""
-                    )
-
-
-                if not text.strip():
-
-                    st.error(
-                        "No readable text was found."
-                    )
-
-                    return
-
-
-                prompt = f"""
-
-You are RockyAI v1-3.
-
-Answer the user's question
-using the uploaded document.
-
-If the answer cannot be found
-in the document, say so clearly.
-
-Question:
-
-{query}
-
-Document:
-
-{text[:12000]}
-
-"""
-
+            else:
 
                 with st.spinner(
-                    "RockyAI is reading your PDF..."
+                    "RockyAI is thinking..."
+                ):
+
+                    result = ask_gemini(
+                        prompt,
+                        """
+                        You are RockyAI, a friendly AI
+                        learning assistant.
+
+                        Explain concepts clearly and
+                        at the student's level.
+
+                        Use headings, bullet points,
+                        examples and simple explanations
+                        when useful.
+
+                        Do not unnecessarily output
+                        programming code unless requested.
+                        """,
+                    )
+
+                save_chat(
+                    st.session_state.username,
+                    "Ask AI",
+                    prompt,
+                    result,
+                )
+
+                st.subheader(
+                    "💡 RockyAI's Answer"
+                )
+
+                # NORMAL AI OUTPUT
+                st.write(result)
+
+
+    # ========================================================
+    # PDF STUDY
+    # ========================================================
+
+    elif tool == "📖 PDF Study":
+
+        st.subheader("📖 PDF Study Assistant")
+
+        uploaded = st.file_uploader(
+            "Upload a textbook, notes or study PDF",
+            type=["pdf"],
+        )
+
+        if uploaded:
+
+            with st.spinner(
+                "Reading your PDF..."
+            ):
+
+                pdf_text = extract_pdf_text(
+                    uploaded
+                )
+
+            if pdf_text:
+
+                st.success(
+                    "PDF loaded successfully!"
+                )
+
+                question = st.text_area(
+                    "Ask something about this PDF",
+                    placeholder=(
+                        "Example: Summarize chapter 2."
+                    ),
+                    height=140,
+                )
+
+                if st.button(
+                    "🔍 Ask About PDF",
+                    type="primary",
+                ):
+
+                    if not question.strip():
+
+                        st.warning(
+                            "Enter a question first."
+                        )
+
+                    else:
+
+                        prompt = f"""
+                        Answer the student's question
+                        using the following PDF content.
+
+                        PDF CONTENT:
+                        {pdf_text}
+
+                        QUESTION:
+                        {question}
+
+                        Give a clear educational answer.
+                        """
+
+                        with st.spinner(
+                            "RockyAI is studying the PDF..."
+                        ):
+
+                            result = ask_gemini(
+                                prompt
+                            )
+
+                        save_chat(
+                            st.session_state.username,
+                            "PDF Study",
+                            question,
+                            result,
+                        )
+
+                        st.subheader(
+                            "📚 Answer"
+                        )
+
+                        st.write(result)
+
+
+    # ========================================================
+    # PDF GENERATOR
+    # ========================================================
+
+    elif tool == "📄 PDF Generator":
+
+        st.subheader("📄 RockyAI PDF Generator")
+
+        title = st.text_input(
+            "PDF Title",
+            "RockyAI Study Notes",
+        )
+
+        content = st.text_area(
+            "Content",
+            height=300,
+            placeholder=(
+                "Enter notes, revision material, "
+                "questions or any content..."
+            ),
+        )
+
+        if st.button(
+            "📄 Generate PDF",
+            type="primary",
+        ):
+
+            if not content.strip():
+
+                st.warning(
+                    "Please enter some content."
+                )
+
+            else:
+
+                pdf = create_pdf(
+                    title,
+                    content,
+                )
+
+                st.success(
+                    "PDF generated successfully!"
+                )
+
+                st.download_button(
+                    "⬇️ Download PDF",
+                    data=pdf,
+                    file_name=(
+                        "RockyAI_v1-3_Generated.pdf"
+                    ),
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+
+
+    # ========================================================
+    # QUIZ GENERATOR
+    # ========================================================
+
+    elif tool == "📝 Quiz Generator":
+
+        st.subheader("📝 Quiz Generator")
+
+        topic = st.text_input(
+            "Quiz Topic",
+            placeholder=(
+                "Example: Electricity - Class 7"
+            ),
+        )
+
+        difficulty = st.selectbox(
+            "Difficulty",
+            [
+                "Easy",
+                "Medium",
+                "Hard",
+            ],
+        )
+
+        if st.button(
+            "📝 Generate Quiz",
+            type="primary",
+        ):
+
+            if not topic.strip():
+
+                st.warning(
+                    "Enter a topic."
+                )
+
+            else:
+
+                prompt = f"""
+                Create exactly 5 multiple-choice
+                questions about:
+
+                {topic}
+
+                Difficulty:
+                {difficulty}
+
+                Format:
+
+                Q1. Question
+                A. Option
+                B. Option
+                C. Option
+                D. Option
+
+                Answer: A
+
+                Repeat for all 5 questions.
+                """
+
+                with st.spinner(
+                    "Creating your quiz..."
                 ):
 
                     result = ask_gemini(
                         prompt
                     )
 
-
                 save_chat(
                     st.session_state.username,
-                    "PDF Study",
-                    query,
-                    result
+                    "Quiz Generator",
+                    topic,
+                    result,
                 )
 
-
-                st.markdown(
-                    "### 📖 PDF Study Result"
+                st.subheader(
+                    "📝 Your Quiz"
                 )
-
-
-                st.markdown(
-                    f"""
-                    <div class="output-box">
-
-                    {result}
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-
-            except Exception:
-
-                st.error(
-                    "Unable to process this PDF."
-                )
-
-
-        # ====================================================
-        # PDF GENERATOR
-        # ====================================================
-
-        elif tool == "📄 PDF Generator":
-
-            prompt = f"""
-
-You are RockyAI v1-3,
-an educational document generator.
-
-Create professional,
-printable content for a PDF.
-
-User request:
-
-{query}
-
-Requirements:
-
-- Clear title
-- Headings
-- Organized sections
-- Bullet points
-- Student-friendly language
-- Printable format
-- Useful educational content
-
-Return only the document content.
-
-"""
-
-
-            with st.spinner(
-                "RockyAI is generating your PDF..."
-            ):
-
-                result = ask_gemini(
-                    prompt
-                )
-
-
-            save_chat(
-                st.session_state.username,
-                "PDF Generator",
-                query,
-                result
-            )
-
-
-            st.markdown(
-                """
-                <div class="pdf-ready">
-
-                    <h2>
-                        📄 PDF Ready!
-                    </h2>
-
-                    <p>
-                        RockyAI v1-3 created your document.
-                    </p>
-
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-
-            pdf = create_pdf(
-                query[:80],
-                result
-            )
-
-
-            st.download_button(
-
-                "⬇️ Download RockyAI PDF",
-
-                data=pdf,
-
-                file_name=(
-                    "RockyAI_v1-3_Generated.pdf"
-                ),
-
-                mime="application/pdf",
-
-                use_container_width=True
-
-            )
-
-
-            with st.expander(
-                "👀 Preview Document"
-            ):
 
                 st.write(result)
 
 
-        # ====================================================
-        # QUIZ
-        # ====================================================
+    # ========================================================
+    # SAMPLE PAPER
+    # ========================================================
 
-        elif tool == "📝 Quiz Generator":
+    elif tool == "📚 Sample Paper":
 
-            prompt = f"""
+        st.subheader(
+            "📚 Sample Paper Generator"
+        )
 
-Create exactly 5 multiple-choice questions
-about:
+        subject = st.text_input(
+            "Subject",
+            placeholder="Science",
+        )
 
-{query}
+        chapters = st.text_area(
+            "Chapters / Topics",
+            placeholder=(
+                "Chapter 1, Chapter 2, Chapter 3..."
+            ),
+        )
 
-Return ONLY valid JSON.
+        marks = st.number_input(
+            "Total Marks",
+            min_value=10,
+            max_value=200,
+            value=40,
+            step=10,
+        )
 
-Format:
+        if st.button(
+            "📚 Generate Sample Paper",
+            type="primary",
+        ):
 
-[
-  {{
-    "question": "Question",
-    "options": [
-      "A) Option",
-      "B) Option",
-      "C) Option",
-      "D) Option"
-    ],
-    "answer": "A"
-  }}
-]
+            if not subject.strip():
 
-Do not include Markdown.
-
-"""
-
-
-            with st.spinner(
-                "Creating your quiz..."
-            ):
-
-                raw = ask_gemini(
-                    prompt
+                st.warning(
+                    "Enter a subject."
                 )
 
+            else:
 
-            raw = (
-                raw
-                .replace(
-                    "```json",
-                    ""
-                )
-                .replace(
-                    "```",
-                    ""
-                )
-                .strip()
-            )
+                prompt = f"""
+                Create a professional school sample
+                question paper.
 
+                Subject:
+                {subject}
 
-            try:
+                Chapters:
+                {chapters}
 
-                questions = json.loads(
-                    raw
-                )
+                Total Marks:
+                {marks}
 
+                Include:
+                - Clear title
+                - Instructions
+                - Multiple sections
+                - MCQs
+                - Short-answer questions
+                - Long-answer questions
+                - Appropriate marks
 
-                st.markdown(
-                    "### 📝 RockyAI Quiz"
-                )
+                Make the paper suitable for a school student.
+                """
 
-
-                answers = []
-
-
-                for i, question in enumerate(
-                    questions
+                with st.spinner(
+                    "Generating sample paper..."
                 ):
 
-                    st.markdown(
-                        f"""
-                        **Q{i + 1}.**
-                        {question["question"]}
-                        """
+                    result = ask_gemini(
+                        prompt
                     )
 
+                save_chat(
+                    st.session_state.username,
+                    "Sample Paper",
+                    subject,
+                    result,
+                )
 
-                    selected = st.radio(
+                st.subheader(
+                    "📚 Generated Sample Paper"
+                )
 
-                        "Select an answer",
+                st.write(result)
 
-                        question["options"],
+                pdf = create_pdf(
+                    f"{subject} Sample Paper",
+                    result,
+                )
 
-                        key=f"quiz_{i}"
+                st.download_button(
+                    "⬇️ Download Sample Paper PDF",
+                    data=pdf,
+                    file_name=(
+                        "RockyAI_v1-3_Sample_Paper.pdf"
+                    ),
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
 
-                    )
 
+    # ========================================================
+    # CODE GENERATOR
+    # ========================================================
 
-                    answers.append(
-                        selected
-                    )
+    elif tool == "💻 Code Generator":
 
+        st.subheader("💻 RockyAI Code Generator")
 
-                if st.button(
-                    "🏆 Check My Score"
+        language = st.selectbox(
+            "Programming Language",
+            [
+                "python",
+                "javascript",
+                "html",
+                "css",
+                "java",
+                "cpp",
+                "c",
+                "sql",
+                "arduino",
+                "json",
+                "bash",
+            ],
+        )
+
+        prompt = st.text_area(
+            "Describe what you want to build",
+            height=180,
+            placeholder=(
+                "Example: Create a Python calculator "
+                "with a graphical interface."
+            ),
+        )
+
+        if st.button(
+            "💻 Generate Code",
+            type="primary",
+        ):
+
+            if not prompt.strip():
+
+                st.warning(
+                    "Describe the code you want."
+                )
+
+            else:
+
+                code_prompt = f"""
+                Generate ONLY executable {language} code.
+
+                User request:
+                {prompt}
+
+                IMPORTANT:
+                - Return ONLY source code.
+                - Do NOT explain the code.
+                - Do NOT add an introduction.
+                - Do NOT add a conclusion.
+                - Do NOT use Markdown code fences.
+                - Do NOT write ```.
+                - Make the code complete and runnable.
+                """
+
+                with st.spinner(
+                    "RockyAI is writing your code..."
                 ):
 
-                    score = 0
-
-
-                    for i, question in enumerate(
-                        questions
-                    ):
-
-                        if answers[i].startswith(
-                            question["answer"]
-                        ):
-
-                            score += 1
-
-
-                    percentage = int(
-                        (
-                            score /
-                            len(questions)
-                        ) * 100
+                    result = ask_gemini(
+                        code_prompt
                     )
 
+                # CLEAN GEMINI RESPONSE
+                clean_code = clean_code_response(
+                    result
+                )
 
-                    if percentage == 100:
+                save_chat(
+                    st.session_state.username,
+                    "Code Generator",
+                    prompt,
+                    clean_code,
+                )
 
-                        st.balloons()
+                st.subheader(
+                    "💻 Generated Code"
+                )
 
-                        message = (
-                            "🏆 Perfect score!"
-                        )
+                # THIS IS THE IMPORTANT FIX
+                st.code(
+                    clean_code,
+                    language=language,
+                    line_numbers=True,
+                )
 
-                    elif percentage >= 60:
-
-                        message = (
-                            "🔥 Great job!"
-                        )
-
-                    else:
-
-                        message = (
-                            "📚 Keep practicing!"
-                        )
+                st.download_button(
+                    "⬇️ Download Code",
+                    data=clean_code,
+                    file_name=(
+                        f"rockyai_code.{get_extension(language)}"
+                    ),
+                    mime="text/plain",
+                )
 
 
-                    st.success(
-                        f"Score: {score}/"
-                        f"{len(questions)} "
-                        f"({percentage}%)\n\n"
-                        f"{message}"
+    # ========================================================
+    # MIND MAP
+    # ========================================================
+
+    elif tool == "🧠 Mind Map":
+
+        st.subheader("🧠 AI Mind Map")
+
+        topic = st.text_input(
+            "Mind Map Topic",
+            placeholder="Example: Photosynthesis",
+        )
+
+        if st.button(
+            "🧠 Generate Mind Map",
+            type="primary",
+        ):
+
+            if not topic.strip():
+
+                st.warning(
+                    "Enter a topic."
+                )
+
+            else:
+
+                prompt = f"""
+                Create a text-based mind map for:
+
+                {topic}
+
+                Use this structure:
+
+                MAIN TOPIC
+                ├── Branch 1
+                │   ├── Point
+                │   └── Point
+                ├── Branch 2
+                │   ├── Point
+                │   └── Point
+                └── Branch 3
+
+                Keep it educational and organized.
+                """
+
+                with st.spinner(
+                    "Building mind map..."
+                ):
+
+                    result = ask_gemini(
+                        prompt
                     )
 
+                save_chat(
+                    st.session_state.username,
+                    "Mind Map",
+                    topic,
+                    result,
+                )
 
-                    save_chat(
-                        st.session_state.username,
-                        "Quiz Generator",
-                        query,
-                        f"Score: {score}/"
-                        f"{len(questions)}"
-                    )
+                st.subheader(
+                    "🧠 Mind Map"
+                )
 
-
-            except Exception:
-
-                st.error(
-                    "The quiz could not be generated. "
-                    "Please try again."
+                st.code(
+                    result,
+                    language="text",
                 )
 
 
-        # ====================================================
-        # SAMPLE PAPER
-        # ====================================================
-
-        elif tool == "📚 Sample Paper":
-
-            prompt = f"""
-
-You are RockyAI v1-3.
-
-Create a professional educational
-sample question paper.
-
-Requirements:
-
-{query}
-
-Include:
-
-- Title
-- Instructions
-- Sections
-- Questions
-- Marks
-- Different question types
-- Appropriate difficulty
-
-"""
-
-
-            with st.spinner(
-                "Creating sample paper..."
-            ):
-
-                result = ask_gemini(
-                    prompt
-                )
-
-
-            save_chat(
-                st.session_state.username,
-                "Sample Paper",
-                query,
-                result
-            )
-
-
-            st.markdown(
-                "### 📚 Sample Paper"
-            )
-
-
-            st.markdown(
-                f"""
-                <div class="output-box">
-
-                {result}
-
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-
-            pdf = create_pdf(
-                "RockyAI v1-3 Sample Paper",
-                result
-            )
-
-
-            st.download_button(
-
-                "⬇️ Download Sample Paper PDF",
-
-                data=pdf,
-
-                file_name=(
-                    "RockyAI_v1-3_Sample_Paper.pdf"
-                ),
-
-                mime="application/pdf"
-
-            )
-
-
-        # ====================================================
-        # CODE GENERATOR
-        # ====================================================
-
-        elif tool == "💻 Code Generator":
-
-            prompt = f"""
-
-You are RockyAI v1-3,
-a programming assistant.
-
-Generate clean,
-commented and understandable code.
-
-User requirement:
-
-{query}
-
-After the code,
-explain the important parts.
-
-"""
-
-
-            with st.spinner(
-                "Writing your code..."
-            ):
-
-                result = ask_gemini(
-                    prompt
-                )
-
-
-            save_chat(
-                st.session_state.username,
-                "Code Generator",
-                query,
-                result
-            )
-
-
-            st.markdown(
-                "### 💻 Generated Code"
-            )
-
-
-            st.code(
-                result
-            )
-
-
-        # ====================================================
-        # MIND MAP
-        # ====================================================
-
-        elif tool == "🧠 Mind Map":
-
-            prompt = f"""
-
-Create a concise text mind map
-for:
-
-{query}
-
-Use:
-
-MAIN TOPIC
-├── Branch
-│   ├── Subtopic
-│   └── Subtopic
-└── Branch
-    ├── Subtopic
-    └── Subtopic
-
-"""
-
-
-            with st.spinner(
-                "Building your mind map..."
-            ):
-
-                result = ask_gemini(
-                    prompt
-                )
-
-
-            save_chat(
-                st.session_state.username,
-                "Mind Map",
-                query,
-                result
-            )
-
-
-            st.markdown(
-                "### 🧠 Mind Map"
-            )
-
-
-            st.code(
-                result
-            )
-
-
-        # ====================================================
-        # PERIODIC TABLE
-        # ====================================================
-
-        elif tool == "🧪 Periodic Table":
-
-            elements = {
-
-                "H": "Hydrogen",
-
-                "He": "Helium",
-
-                "Li": "Lithium",
-
-                "Be": "Beryllium",
-
-                "B": "Boron",
-
-                "C": "Carbon",
-
-                "N": "Nitrogen",
-
-                "O": "Oxygen",
-
-                "F": "Fluorine",
-
-                "Ne": "Neon",
-
-                "Na": "Sodium",
-
-                "Mg": "Magnesium",
-
-                "Al": "Aluminium",
-
-                "Si": "Silicon",
-
-                "P": "Phosphorus",
-
-                "S": "Sulfur",
-
-                "Cl": "Chlorine",
-
-                "Ar": "Argon"
-
-            }
-
-
-            st.markdown(
-                "### 🧪 Element Reference"
-            )
-
-
-            for symbol, name in elements.items():
-
-                st.write(
-                    f"**{symbol}** — {name}"
-                )
+    # ========================================================
+    # PERIODIC TABLE
+    # ========================================================
+
+    elif tool == "🧪 Periodic Table":
+
+        st.subheader(
+            "🧪 Periodic Table Explorer"
+        )
+
+        elements = [
+            ("1", "H", "Hydrogen"),
+            ("2", "He", "Helium"),
+            ("3", "Li", "Lithium"),
+            ("4", "Be", "Beryllium"),
+            ("5", "B", "Boron"),
+            ("6", "C", "Carbon"),
+            ("7", "N", "Nitrogen"),
+            ("8", "O", "Oxygen"),
+            ("9", "F", "Fluorine"),
+            ("10", "Ne", "Neon"),
+            ("11", "Na", "Sodium"),
+            ("12", "Mg", "Magnesium"),
+            ("13", "Al", "Aluminium"),
+            ("14", "Si", "Silicon"),
+            ("15", "P", "Phosphorus"),
+            ("16", "S", "Sulfur"),
+            ("17", "Cl", "Chlorine"),
+            ("18", "Ar", "Argon"),
+        ]
+
+        element_choice = st.selectbox(
+            "Choose an element",
+            [
+                f"{number} — {symbol} — {name}"
+                for number, symbol, name
+                in elements
+            ],
+        )
+
+        number, symbol, name = element_choice.split(
+            " — "
+        )
+
+        st.markdown(
+            f"""
+            <div class="tool-card">
+
+            <h2>{symbol}</h2>
+
+            <h3>{name}</h3>
+
+            <p>
+            Atomic Number: <b>{number}</b>
+            </p>
+
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 # ============================================================
-# 12. HISTORY
+# FILE EXTENSIONS
+# ============================================================
+
+def get_extension(language):
+
+    extensions = {
+        "python": "py",
+        "javascript": "js",
+        "html": "html",
+        "css": "css",
+        "java": "java",
+        "cpp": "cpp",
+        "c": "c",
+        "sql": "sql",
+        "arduino": "ino",
+        "json": "json",
+        "bash": "sh",
+    }
+
+    return extensions.get(
+        language,
+        "txt",
+    )
+
+
+# ============================================================
+# HISTORY
 # ============================================================
 
 def history_page():
 
-    st.title(
-        "💬 RockyAI v1-3 History"
-    )
+    st.title("📜 Chat History")
 
+    conn = get_connection()
 
-    conn = get_db()
-
-
-    chats = conn.execute(
+    rows = conn.execute(
         """
-        SELECT
-            tool,
-            prompt,
-            response,
-            timestamp
+        SELECT tool, prompt, response, timestamp
         FROM chats
         WHERE username = ?
         ORDER BY id DESC
         """,
-        (st.session_state.username,)
+        (st.session_state.username,),
     ).fetchall()
-
 
     conn.close()
 
-
-    if not chats:
+    if not rows:
 
         st.info(
-            "No AI activity yet."
+            "You don't have any saved chats yet."
         )
 
         return
 
-
-    for chat in chats:
+    for row in rows:
 
         with st.expander(
-            f"{chat['tool']} • "
-            f"{chat['timestamp']}"
+            f"🛠️ {row['tool']} • {row['timestamp']}"
         ):
 
             st.markdown(
-                "**You:**"
+                "**Prompt:**"
             )
 
             st.write(
-                chat["prompt"]
+                row["prompt"]
             )
-
 
             st.markdown(
-                "**RockyAI:**"
+                "**Response:**"
             )
 
-            st.write(
-                chat["response"]
-            )
+            if row["tool"] == "Code Generator":
+
+                st.code(
+                    clean_code_response(
+                        row["response"]
+                    ),
+                    language="text",
+                    line_numbers=True,
+                )
+
+            else:
+
+                st.write(
+                    row["response"]
+                )
 
 
 # ============================================================
-# 13. ANALYTICS
+# ANALYTICS
 # ============================================================
 
 def analytics_page():
 
-    st.title(
-        "📊 RockyAI v1-3 Analytics"
-    )
+    st.title("📊 Analytics")
 
+    username = st.session_state.username
 
-    conn = get_db()
-
+    conn = get_connection()
 
     user = conn.execute(
         """
-        SELECT prompts_count
+        SELECT prompts_count, created_at
         FROM users
         WHERE username = ?
         """,
-        (st.session_state.username,)
+        (username,),
     ).fetchone()
-
-
-    tools = conn.execute(
-        """
-        SELECT
-            tool,
-            COUNT(*) AS count
-        FROM chats
-        WHERE username = ?
-        GROUP BY tool
-        ORDER BY count DESC
-        """,
-        (st.session_state.username,)
-    ).fetchall()
-
 
     conn.close()
 
+    total = user["prompts_count"] if user else 0
 
-    requests = (
-        user["prompts_count"]
-        if user
-        else 0
-    )
-
-
-    col1, col2 = st.columns(2)
-
+    col1, col2, col3 = st.columns(3)
 
     with col1:
 
-        st.metric(
-            "Total AI Requests",
-            requests
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <div class="stat-number">{total}</div>
+                <div class="stat-label">AI Requests</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-
 
     with col2:
 
-        st.metric(
-            "Available Tools",
-            8
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <div class="stat-number">
+                    {get_chat_count(username)}
+                </div>
+                <div class="stat-label">Saved Chats</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
+    with col3:
+
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <div class="stat-number">
+                    🤖
+                </div>
+                <div class="stat-label">
+                    RockyAI User
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
 
     st.subheader(
-        "Tool Usage"
+        "🚀 Your RockyAI Workspace"
+    )
+
+    st.write(
+        """
+        RockyAI combines AI learning tools into one
+        workspace so students can ask questions,
+        study PDFs, create quizzes, generate sample
+        papers, write code and create study material.
+        """
     )
 
 
-    if tools:
-
-        for tool in tools:
-
-            st.write(
-                f"**{tool['tool']}** — "
-                f"{tool['count']} requests"
-            )
-
-    else:
-
-        st.info(
-            "No usage data yet."
-        )
-
-
 # ============================================================
-# 14. ADMIN PANEL
+# ADMIN PANEL
 # ============================================================
 
 def admin_page():
 
-    st.title(
-        "👑 RockyAI v1-3 Admin Panel"
+    st.title("👑 Admin Panel")
+
+    if st.session_state.role != "admin":
+
+        st.error(
+            "You do not have administrator access."
+        )
+
+        return
+
+    st.metric(
+        "Registered Users",
+        get_user_count(),
     )
 
+    st.metric(
+        "Total AI Requests",
+        get_chat_count(),
+    )
 
-    conn = get_db()
+    st.divider()
 
+    st.subheader(
+        "👥 Registered Users"
+    )
+
+    conn = get_connection()
 
     users = conn.execute(
         """
-        SELECT
-            username,
-            role,
-            prompts_count,
-            created_at
+        SELECT username, role,
+               prompts_count, created_at
         FROM users
         ORDER BY created_at DESC
         """
     ).fetchall()
 
-
     conn.close()
-
-
-    st.subheader(
-        "Registered Users"
-    )
-
 
     for user in users:
 
         col1, col2, col3, col4 = st.columns(
-            [3, 2, 2, 2]
+            [2, 1, 1, 2]
         )
 
-
         with col1:
-
             st.write(
                 f"👤 **{user['username']}**"
             )
 
-
         with col2:
-
             st.write(
                 user["role"]
             )
 
-
         with col3:
-
             st.write(
                 f"{user['prompts_count']} requests"
             )
 
-
         with col4:
+            st.caption(
+                user["created_at"]
+            )
 
-            if (
-                user["username"]
-                != st.session_state.username
+        if (
+            user["username"]
+            != st.session_state.username
+        ):
+
+            if st.button(
+                f"🗑️ Delete {user['username']}",
+                key=f"delete_{user['username']}",
             ):
 
-                if st.button(
-                    "Delete",
-                    key=(
-                        "delete_"
-                        + user["username"]
-                    )
-                ):
+                conn = get_connection()
 
-                    conn = get_db()
+                conn.execute(
+                    """
+                    DELETE FROM chats
+                    WHERE username = ?
+                    """,
+                    (user["username"],),
+                )
 
+                conn.execute(
+                    """
+                    DELETE FROM users
+                    WHERE username = ?
+                    """,
+                    (user["username"],),
+                )
 
-                    conn.execute(
-                        """
-                        DELETE FROM chats
-                        WHERE username = ?
-                        """,
-                        (user["username"],)
-                    )
+                conn.commit()
+                conn.close()
 
+                st.success(
+                    "User deleted."
+                )
 
-                    conn.execute(
-                        """
-                        DELETE FROM users
-                        WHERE username = ?
-                        """,
-                        (user["username"],)
-                    )
-
-
-                    conn.commit()
-
-                    conn.close()
-
-
-                    st.success(
-                        "User deleted."
-                    )
-
-                    st.rerun()
-
-
-    st.divider()
-
-
-    st.subheader(
-        "System Information"
-    )
-
-
-    st.info(
-        "RockyAI v1-3\n\n"
-        "AI Engine: Gemini 2.5 Flash\n\n"
-        "Framework: Streamlit\n\n"
-        "Database: SQLite\n\n"
-        "PDF Engine: ReportLab\n\n"
-        "Image Generation: Removed"
-    )
+                st.rerun()
 
 
 # ============================================================
-# 15. INITIALIZE SESSION
-# ============================================================
-
-if "logged_in" not in st.session_state:
-
-    st.session_state.logged_in = False
-
-
-# ============================================================
-# 16. APPLICATION
+# MAIN APPLICATION
 # ============================================================
 
 if not st.session_state.logged_in:
 
-    login_page()
+    show_auth()
 
 else:
 
     page = show_sidebar()
 
-
     if page == "🏠 Workspace":
 
         workspace()
 
-
-    elif page == "💬 History":
+    elif page == "📜 History":
 
         history_page()
-
 
     elif page == "📊 Analytics":
 
         analytics_page()
 
-
     elif page == "👑 Admin Panel":
 
-        if st.session_state.role == "admin":
-
-            admin_page()
-
-        else:
-
-            st.error(
-                "Access denied."
-            )
+        admin_page()
 
 
-    st.markdown(
-        """
-        <div class="footer">
+# ============================================================
+# FOOTER
+# ============================================================
 
-        <strong>
-        RockyAI v1-3
-        </strong>
-
-        <br>
-
-        AI-Powered Learning Workspace
-
-        <br><br>
-
-        Learn smarter. Build faster. 🚀
-
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+st.markdown(
+    """
+    <div class="footer">
+        🤖 <b>RockyAI v1-3</b><br>
+        AI-powered learning workspace
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
