@@ -811,18 +811,30 @@ def show_sidebar():
 
     with st.sidebar:
 
-        st.markdown(
-            """
-            <div style="
-                font-size:28px;
-                font-weight:800;
-                color:#60a5fa;
-                margin-bottom:4px;
-            ">
-                ðŸ¤– RockyAI
-            </div>
-            """,
-            unsafe_allow_html=True,
+      st.markdown(
+    """
+    <div style="
+        text-align:center;
+        padding:10px 0 15px 0;
+    ">
+        <div style="font-size:52px;">🤖</div>
+        <div style="
+            font-size:28px;
+            font-weight:800;
+            color:#60a5fa;
+        ">
+            RockyAI
+        </div>
+        <div style="
+            font-size:13px;
+            color:#94a3b8;
+        ">
+            v1-3 • AI Learning Workspace
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)  
         )
 
         st.caption("v1-3 â€¢ AI Learning Workspace")
