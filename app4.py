@@ -5,6 +5,9 @@ from io import BytesIO
 from datetime import datetime
 
 import streamlit as st
+from extra_streamlit_components import CookieManager
+import secrets
+import hashlib
 from google import genai
 from google.genai import types
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -31,7 +34,7 @@ from reportlab.platypus import (
 
 st.set_page_config(
     page_title="RockyAI v1-3",
-    page_icon="🤖",
+    page_icon="ðŸ¤–",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -168,6 +171,17 @@ def init_database():
 
     cursor.execute(
         """
+        CREATE TABLE IF NOT EXISTS sessions (
+            token_hash TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_seen TEXT NOT NULL
+        )
+        """
+    )
+
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS chats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
@@ -248,6 +262,112 @@ MODEL_NAME = "gemini-2.5-flash"
 
 
 # ============================================================
+# PERSISTENT LOGIN
+# ============================================================
+
+COOKIE_NAME = "rockyai_v1_3_session"
+COOKIE_DAYS = 30
+
+# Stores a random login token in the browser.
+# Only the SHA-256 hash is stored in SQLite.
+cookie_manager = CookieManager()
+
+
+def hash_session_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_persistent_session(username):
+    token = secrets.token_urlsafe(48)
+    token_hash = hash_session_token(token)
+    now = datetime.now().isoformat()
+
+    conn = get_connection()
+    conn.execute(
+        """
+        INSERT INTO sessions
+        (token_hash, username, created_at, last_seen)
+        VALUES (?, ?, ?, ?)
+        """,
+        (token_hash, username, now, now),
+    )
+    conn.commit()
+    conn.close()
+
+    cookie_manager.set(
+        COOKIE_NAME,
+        token,
+        max_age=COOKIE_DAYS * 24 * 60 * 60,
+    )
+
+
+def restore_persistent_session():
+    try:
+        token = cookie_manager.get(COOKIE_NAME)
+
+        if not token:
+            return False
+
+        token_hash = hash_session_token(token)
+
+        conn = get_connection()
+        session = conn.execute(
+            """
+            SELECT s.username, u.role
+            FROM sessions s
+            JOIN users u ON u.username = s.username
+            WHERE s.token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+
+        if session:
+            conn.execute(
+                """
+                UPDATE sessions
+                SET last_seen = ?
+                WHERE token_hash = ?
+                """,
+                (datetime.now().isoformat(), token_hash),
+            )
+            conn.commit()
+            conn.close()
+
+            st.session_state.logged_in = True
+            st.session_state.username = session["username"]
+            st.session_state.role = session["role"]
+            return True
+
+        conn.close()
+
+    except Exception:
+        pass
+
+    return False
+
+
+def clear_persistent_session():
+    try:
+        token = cookie_manager.get(COOKIE_NAME)
+
+        if token:
+            token_hash = hash_session_token(token)
+
+            conn = get_connection()
+            conn.execute(
+                "DELETE FROM sessions WHERE token_hash = ?",
+                (token_hash,),
+            )
+            conn.commit()
+            conn.close()
+
+        cookie_manager.delete(COOKIE_NAME)
+
+    except Exception:
+        pass
+
+
+# ============================================================
 # SESSION STATE
 # ============================================================
 
@@ -259,6 +379,14 @@ if "username" not in st.session_state:
 
 if "role" not in st.session_state:
     st.session_state.role = None
+
+if "persistent_session_checked" not in st.session_state:
+    st.session_state.persistent_session_checked = False
+
+if not st.session_state.persistent_session_checked:
+    st.session_state.persistent_session_checked = True
+    if not st.session_state.logged_in:
+        restore_persistent_session()
 
 
 # ============================================================
@@ -455,6 +583,9 @@ def login_user(username, password):
         st.session_state.username = user["username"]
         st.session_state.role = user["role"]
 
+        # Stay logged in after closing/reopening the browser.
+        create_persistent_session(user["username"])
+
         return True
 
     return False
@@ -469,7 +600,7 @@ def show_auth():
     st.markdown(
         """
         <div class="hero-card">
-            <div class="rocky-title">🤖 RockyAI</div>
+            <div class="rocky-title">ðŸ¤– RockyAI</div>
             <div class="rocky-subtitle">
                 Your AI-powered learning workspace
             </div>
@@ -479,7 +610,7 @@ def show_auth():
     )
 
     tab1, tab2 = st.tabs(
-        ["🔐 Login", "📝 Create Account"]
+        ["ðŸ” Login", "ðŸ“ Create Account"]
     )
 
     with tab1:
@@ -688,35 +819,35 @@ def show_sidebar():
                 color:#60a5fa;
                 margin-bottom:4px;
             ">
-                🤖 RockyAI
+                ðŸ¤– RockyAI
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.caption("v1-3 • AI Learning Workspace")
+        st.caption("v1-3 â€¢ AI Learning Workspace")
 
         st.divider()
 
         st.write(
-            f"👤 **{st.session_state.username}**"
+            f"ðŸ‘¤ **{st.session_state.username}**"
         )
 
         if st.session_state.role == "admin":
-            st.caption("👑 Administrator")
+            st.caption("ðŸ‘‘ Administrator")
         else:
-            st.caption("🎓 Student")
+            st.caption("ðŸŽ“ Student")
 
         st.divider()
 
         pages = [
-            "🏠 Workspace",
-            "📜 History",
-            "📊 Analytics",
+            "ðŸ  Workspace",
+            "ðŸ“œ History",
+            "ðŸ“Š Analytics",
         ]
 
         if st.session_state.role == "admin":
-            pages.append("👑 Admin Panel")
+            pages.append("ðŸ‘‘ Admin Panel")
 
         page = st.radio(
             "Navigation",
@@ -726,13 +857,17 @@ def show_sidebar():
         st.divider()
 
         if st.button(
-            "🚪 Logout",
+            "ðŸšª Logout",
             use_container_width=True,
         ):
+
+            # Explicit logout removes the persistent login.
+            clear_persistent_session()
 
             st.session_state.logged_in = False
             st.session_state.username = None
             st.session_state.role = None
+            st.session_state.persistent_session_checked = True
 
             st.rerun()
 
@@ -750,7 +885,7 @@ def workspace():
         <div class="hero-card">
 
         <div class="rocky-title">
-        🤖 RockyAI
+        ðŸ¤– RockyAI
         </div>
 
         <div class="rocky-subtitle">
@@ -762,17 +897,22 @@ def workspace():
         unsafe_allow_html=True,
     )
 
+    st.success(
+        f"ðŸ‘‹ Welcome back, {st.session_state.username}! "
+        "Your RockyAI dashboard is ready."
+    )
+
     tool = st.selectbox(
         "Choose a RockyAI Tool",
         [
-            "🤖 Ask RockyAI",
-            "📖 PDF Study",
-            "📄 PDF Generator",
-            "📝 Quiz Generator",
-            "📚 Sample Paper",
-            "💻 Code Generator",
-            "🧠 Mind Map",
-            "🧪 Periodic Table",
+            "ðŸ¤– Ask RockyAI",
+            "ðŸ“– PDF Study",
+            "ðŸ“„ PDF Generator",
+            "ðŸ“ Quiz Generator",
+            "ðŸ“š Sample Paper",
+            "ðŸ’» Code Generator",
+            "ðŸ§  Mind Map",
+            "ðŸ§ª Periodic Table",
         ],
     )
 
@@ -783,9 +923,9 @@ def workspace():
     # ASK AI
     # ========================================================
 
-    if tool == "🤖 Ask RockyAI":
+    if tool == "ðŸ¤– Ask RockyAI":
 
-        st.subheader("🤖 Ask RockyAI")
+        st.subheader("ðŸ¤– Ask RockyAI")
 
         prompt = st.text_area(
             "What would you like to learn?",
@@ -797,7 +937,7 @@ def workspace():
         )
 
         if st.button(
-            "🚀 Ask RockyAI",
+            "ðŸš€ Ask RockyAI",
             type="primary",
         ):
 
@@ -839,7 +979,7 @@ def workspace():
                 )
 
                 st.subheader(
-                    "💡 RockyAI's Answer"
+                    "ðŸ’¡ RockyAI's Answer"
                 )
 
                 # NORMAL AI OUTPUT
@@ -850,9 +990,9 @@ def workspace():
     # PDF STUDY
     # ========================================================
 
-    elif tool == "📖 PDF Study":
+    elif tool == "ðŸ“– PDF Study":
 
-        st.subheader("📖 PDF Study Assistant")
+        st.subheader("ðŸ“– PDF Study Assistant")
 
         uploaded = st.file_uploader(
             "Upload a textbook, notes or study PDF",
@@ -884,7 +1024,7 @@ def workspace():
                 )
 
                 if st.button(
-                    "🔍 Ask About PDF",
+                    "ðŸ” Ask About PDF",
                     type="primary",
                 ):
 
@@ -925,7 +1065,7 @@ def workspace():
                         )
 
                         st.subheader(
-                            "📚 Answer"
+                            "ðŸ“š Answer"
                         )
 
                         st.write(result)
@@ -935,9 +1075,9 @@ def workspace():
     # PDF GENERATOR
     # ========================================================
 
-    elif tool == "📄 PDF Generator":
+    elif tool == "ðŸ“„ PDF Generator":
 
-        st.subheader("📄 RockyAI PDF Generator")
+        st.subheader("ðŸ“„ RockyAI PDF Generator")
 
         title = st.text_input(
             "PDF Title",
@@ -954,7 +1094,7 @@ def workspace():
         )
 
         if st.button(
-            "📄 Generate PDF",
+            "ðŸ“„ Generate PDF",
             type="primary",
         ):
 
@@ -976,7 +1116,7 @@ def workspace():
                 )
 
                 st.download_button(
-                    "⬇️ Download PDF",
+                    "â¬‡ï¸ Download PDF",
                     data=pdf,
                     file_name=(
                         "RockyAI_v1-3_Generated.pdf"
@@ -990,9 +1130,9 @@ def workspace():
     # QUIZ GENERATOR
     # ========================================================
 
-    elif tool == "📝 Quiz Generator":
+    elif tool == "ðŸ“ Quiz Generator":
 
-        st.subheader("📝 Quiz Generator")
+        st.subheader("ðŸ“ Quiz Generator")
 
         topic = st.text_input(
             "Quiz Topic",
@@ -1011,7 +1151,7 @@ def workspace():
         )
 
         if st.button(
-            "📝 Generate Quiz",
+            "ðŸ“ Generate Quiz",
             type="primary",
         ):
 
@@ -1061,7 +1201,7 @@ def workspace():
                 )
 
                 st.subheader(
-                    "📝 Your Quiz"
+                    "ðŸ“ Your Quiz"
                 )
 
                 st.write(result)
@@ -1071,10 +1211,10 @@ def workspace():
     # SAMPLE PAPER
     # ========================================================
 
-    elif tool == "📚 Sample Paper":
+    elif tool == "ðŸ“š Sample Paper":
 
         st.subheader(
-            "📚 Sample Paper Generator"
+            "ðŸ“š Sample Paper Generator"
         )
 
         subject = st.text_input(
@@ -1098,7 +1238,7 @@ def workspace():
         )
 
         if st.button(
-            "📚 Generate Sample Paper",
+            "ðŸ“š Generate Sample Paper",
             type="primary",
         ):
 
@@ -1151,7 +1291,7 @@ def workspace():
                 )
 
                 st.subheader(
-                    "📚 Generated Sample Paper"
+                    "ðŸ“š Generated Sample Paper"
                 )
 
                 st.write(result)
@@ -1162,7 +1302,7 @@ def workspace():
                 )
 
                 st.download_button(
-                    "⬇️ Download Sample Paper PDF",
+                    "â¬‡ï¸ Download Sample Paper PDF",
                     data=pdf,
                     file_name=(
                         "RockyAI_v1-3_Sample_Paper.pdf"
@@ -1176,9 +1316,9 @@ def workspace():
     # CODE GENERATOR
     # ========================================================
 
-    elif tool == "💻 Code Generator":
+    elif tool == "ðŸ’» Code Generator":
 
-        st.subheader("💻 RockyAI Code Generator")
+        st.subheader("ðŸ’» RockyAI Code Generator")
 
         language = st.selectbox(
             "Programming Language",
@@ -1207,7 +1347,7 @@ def workspace():
         )
 
         if st.button(
-            "💻 Generate Code",
+            "ðŸ’» Generate Code",
             type="primary",
         ):
 
@@ -1256,7 +1396,7 @@ def workspace():
                 )
 
                 st.subheader(
-                    "💻 Generated Code"
+                    "ðŸ’» Generated Code"
                 )
 
                 # THIS IS THE IMPORTANT FIX
@@ -1267,7 +1407,7 @@ def workspace():
                 )
 
                 st.download_button(
-                    "⬇️ Download Code",
+                    "â¬‡ï¸ Download Code",
                     data=clean_code,
                     file_name=(
                         f"rockyai_code.{get_extension(language)}"
@@ -1280,9 +1420,9 @@ def workspace():
     # MIND MAP
     # ========================================================
 
-    elif tool == "🧠 Mind Map":
+    elif tool == "ðŸ§  Mind Map":
 
-        st.subheader("🧠 AI Mind Map")
+        st.subheader("ðŸ§  AI Mind Map")
 
         topic = st.text_input(
             "Mind Map Topic",
@@ -1290,7 +1430,7 @@ def workspace():
         )
 
         if st.button(
-            "🧠 Generate Mind Map",
+            "ðŸ§  Generate Mind Map",
             type="primary",
         ):
 
@@ -1310,13 +1450,13 @@ def workspace():
                 Use this structure:
 
                 MAIN TOPIC
-                ├── Branch 1
-                │   ├── Point
-                │   └── Point
-                ├── Branch 2
-                │   ├── Point
-                │   └── Point
-                └── Branch 3
+                â”œâ”€â”€ Branch 1
+                â”‚   â”œâ”€â”€ Point
+                â”‚   â””â”€â”€ Point
+                â”œâ”€â”€ Branch 2
+                â”‚   â”œâ”€â”€ Point
+                â”‚   â””â”€â”€ Point
+                â””â”€â”€ Branch 3
 
                 Keep it educational and organized.
                 """
@@ -1337,7 +1477,7 @@ def workspace():
                 )
 
                 st.subheader(
-                    "🧠 Mind Map"
+                    "ðŸ§  Mind Map"
                 )
 
                 st.code(
@@ -1350,10 +1490,10 @@ def workspace():
     # PERIODIC TABLE
     # ========================================================
 
-    elif tool == "🧪 Periodic Table":
+    elif tool == "ðŸ§ª Periodic Table":
 
         st.subheader(
-            "🧪 Periodic Table Explorer"
+            "ðŸ§ª Periodic Table Explorer"
         )
 
         elements = [
@@ -1380,14 +1520,14 @@ def workspace():
         element_choice = st.selectbox(
             "Choose an element",
             [
-                f"{number} — {symbol} — {name}"
+                f"{number} â€” {symbol} â€” {name}"
                 for number, symbol, name
                 in elements
             ],
         )
 
         number, symbol, name = element_choice.split(
-            " — "
+            " â€” "
         )
 
         st.markdown(
@@ -1440,7 +1580,7 @@ def get_extension(language):
 
 def history_page():
 
-    st.title("📜 Chat History")
+    st.title("ðŸ“œ Chat History")
 
     conn = get_connection()
 
@@ -1467,7 +1607,7 @@ def history_page():
     for row in rows:
 
         with st.expander(
-            f"🛠️ {row['tool']} • {row['timestamp']}"
+            f"ðŸ› ï¸ {row['tool']} â€¢ {row['timestamp']}"
         ):
 
             st.markdown(
@@ -1505,7 +1645,7 @@ def history_page():
 
 def analytics_page():
 
-    st.title("📊 Analytics")
+    st.title("ðŸ“Š Analytics")
 
     username = st.session_state.username
 
@@ -1558,7 +1698,7 @@ def analytics_page():
             f"""
             <div class="stat-card">
                 <div class="stat-number">
-                    🤖
+                    ðŸ¤–
                 </div>
                 <div class="stat-label">
                     RockyAI User
@@ -1571,7 +1711,7 @@ def analytics_page():
     st.divider()
 
     st.subheader(
-        "🚀 Your RockyAI Workspace"
+        "ðŸš€ Your RockyAI Workspace"
     )
 
     st.write(
@@ -1590,7 +1730,7 @@ def analytics_page():
 
 def admin_page():
 
-    st.title("👑 Admin Panel")
+    st.title("ðŸ‘‘ Admin Panel")
 
     if st.session_state.role != "admin":
 
@@ -1613,7 +1753,7 @@ def admin_page():
     st.divider()
 
     st.subheader(
-        "👥 Registered Users"
+        "ðŸ‘¥ Registered Users"
     )
 
     conn = get_connection()
@@ -1637,7 +1777,7 @@ def admin_page():
 
         with col1:
             st.write(
-                f"👤 **{user['username']}**"
+                f"ðŸ‘¤ **{user['username']}**"
             )
 
         with col2:
@@ -1661,7 +1801,7 @@ def admin_page():
         ):
 
             if st.button(
-                f"🗑️ Delete {user['username']}",
+                f"ðŸ—‘ï¸ Delete {user['username']}",
                 key=f"delete_{user['username']}",
             ):
 
@@ -1705,19 +1845,19 @@ else:
 
     page = show_sidebar()
 
-    if page == "🏠 Workspace":
+    if page == "ðŸ  Workspace":
 
         workspace()
 
-    elif page == "📜 History":
+    elif page == "ðŸ“œ History":
 
         history_page()
 
-    elif page == "📊 Analytics":
+    elif page == "ðŸ“Š Analytics":
 
         analytics_page()
 
-    elif page == "👑 Admin Panel":
+    elif page == "ðŸ‘‘ Admin Panel":
 
         admin_page()
 
@@ -1729,7 +1869,7 @@ else:
 st.markdown(
     """
     <div class="footer">
-        🤖 <b>RockyAI v1-3</b><br>
+        ðŸ¤– <b>RockyAI v1-3</b><br>
         AI-powered learning workspace
     </div>
     """,
