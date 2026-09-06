@@ -1,1 +1,6 @@
-
+streamlit
+google-genai
+Werkzeug
+PyPDF2
+reportlab
+extra-streamlit-components
