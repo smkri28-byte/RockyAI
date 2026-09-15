@@ -38,7 +38,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_NAME = "RockyAIv1-7"
+APP_NAME = "RockyAIv1-8"
 MODEL = "gemini-2.5-flash"
 DB_PATH = Path(__file__).resolve().parent / "rockyai_v1_5.db"
 COOKIE_NAME = "rockyai_v1_5_session"
@@ -2152,10 +2152,21 @@ def v17_chat_ui():
         if st.button("✚ New chat", type="primary", use_container_width=True, key="v17_new"):
             v17_new_chat(); st.rerun()
         st.caption("Your conversations")
-        for name in st.session_state.v17_chats:
+        for name in list(st.session_state.v17_chats.keys()):
+            chat_col, delete_col = st.columns([5, 1])
             label = ("● " if name == st.session_state.v17_active_chat else "") + name
-            if st.button(label, use_container_width=True, key="v17_" + name):
-                st.session_state.v17_active_chat = name; st.rerun()
+            with chat_col:
+                if st.button(label, use_container_width=True, key="v18_chat_" + name):
+                    st.session_state.v17_active_chat = name; st.rerun()
+            with delete_col:
+                if st.button("🗑️", use_container_width=True, key="v18_delete_" + name, help="Delete this chat"):
+                    del st.session_state.v17_chats[name]
+                    if not st.session_state.v17_chats:
+                        st.session_state.v17_chats["New chat"] = []
+                    if st.session_state.v17_active_chat == name:
+                        st.session_state.v17_active_chat = next(iter(st.session_state.v17_chats))
+                    st.session_state.rockyai_attachments = []
+                    st.rerun()
     name = st.session_state.v17_active_chat
     messages = st.session_state.v17_chats[name]
     st.markdown(f'''<div class="v17-head"><div><div class="v17-title">🏔️ {html.escape(name)}</div><div class="v17-sub">RockyAIv1-7 • AI conversation</div></div><div>● ONLINE</div></div>''', unsafe_allow_html=True)
