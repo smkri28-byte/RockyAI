@@ -1,0 +1,9 @@
+streamlit
+google-genai
+werkzeug
+PyPDF2
+reportlab
+extra-streamlit-components
+python-docx
+openpyxl
+python-pptx
