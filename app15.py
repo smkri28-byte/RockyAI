@@ -916,7 +916,7 @@ def login_page():
     st.markdown(
         """
         <div class="rocky-hero">
-            <span class="badge">ROCKYAI v1-7</span>
+            <span class="badge">ROCKYAI v1-9</span>
             <span class="badge">AI LEARNING WORKSPACE</span>
             <h1>🏔️ RockyAI</h1>
             <p>Learn faster. Practice smarter. Build better.</p>
@@ -928,7 +928,7 @@ def login_page():
     left, right = st.columns(2)
 
     with left:
-        st.markdown("### 🚀 RockyAIv1-8")
+        st.markdown("### 🚀 RockyAIv1-9")
 
         st.markdown(
             """
@@ -2544,7 +2544,7 @@ def study_tools_page():
 
 
 def workspace():
-    v18_chat_ui()
+    v19_chat_ui()
 
 # ============================================================
 # HISTORY
