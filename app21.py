@@ -805,7 +805,7 @@ def ask_rockyai(prompt, instruction=""):
     low = str(prompt).strip().lower()
 
     # Keep the custom RockyCore engines available for explicit analytical requests.
-    if any(k in low for k in [
+    if not attachment_text and any(k in low for k in [
         "data science", "dataset", "csv", "excel", "regression",
         "classification", "clustering", "k-means", "pca"
     ]):
@@ -817,7 +817,7 @@ def ask_rockyai(prompt, instruction=""):
             f"**Gemini:** `{GEMINI_MODEL}` • **RockyCore-DS:** enabled"
         )
 
-    if any(k in low for k in [
+    if not attachment_text and any(k in low for k in [
         "nlp", "text analysis", "sentiment", "tf-idf", "keyword",
         "summarize text", "cosine similarity", "entity extraction"
     ]):
@@ -968,7 +968,7 @@ def login_page():
     st.markdown(
         """
         <div class="rocky-hero">
-            <span class="badge">ROCKYAI v1-7</span>
+            <span class="badge">ROCKYAI v2-0</span>
             <span class="badge">AI LEARNING WORKSPACE</span>
             <h1>🏔️ RockyAI</h1>
             <p>Learn faster. Practice smarter. Build better.</p>
@@ -2433,81 +2433,137 @@ def v19_extensions_panel():
                 st.rerun()
 
 
+def _slash_command(prompt):
+    p = prompt.strip()
+    if not p.startswith('/'):
+        return p, ''
+    cmd, _, rest = p[1:].partition(' ')
+    shortcuts = {'code':'CODE','python':'CODE_PYTHON','javascript':'CODE_JAVASCRIPT','js':'CODE_JAVASCRIPT','java':'CODE_JAVA','cpp':'CODE_CPP','c++':'CODE_CPP','arduino':'CODE_ARDUINO','mindmap':'MINDMAP','quiz':'QUIZ','summary':'SUMMARY','summarize':'SUMMARY','flashcards':'FLASHCARDS','translate':'TRANSLATE','explain':'EXPLAIN','study':'STUDY','pdf':'PDF'}
+    return rest.strip(), shortcuts.get(cmd.lower().strip(), '')
+
+
+def _render_code_block(code, language='text', block_index=0):
+    lang=(language or 'text').strip().lower()
+    ext={'python':'.py','py':'.py','javascript':'.js','js':'.js','java':'.java','cpp':'.cpp','c++':'.cpp','c':'.c','arduino':'.ino','ino':'.ino','sql':'.sql','html':'.html','css':'.css','json':'.json','xml':'.xml','yaml':'.yaml','yml':'.yml','bash':'.sh','shell':'.sh','markdown':'.md','md':'.md','text':'.txt','txt':'.txt'}.get(lang,'.txt')
+    c1,c2=st.columns([1,1])
+    with c1: st.caption(f'Programming language: **{language or "Text"}**')
+    with c2: st.download_button('⬇️ Download',data=code,file_name=f'RockyAI_code_{block_index}{ext}',mime='text/plain',key=f'code_dl_{hashlib.md5((code+str(block_index)).encode()).hexdigest()}',use_container_width=True)
+    st.code(code,language=lang if lang!='text' else None)
+
+
+def _render_mindmap(text, block_index=0):
+    c1,c2=st.columns([1,1])
+    with c1: st.caption('Mind map')
+    with c2: st.download_button('⬇️ Download',data=text,file_name='RockyAI_mindmap.txt',mime='text/plain',key=f'mindmap_dl_{hashlib.md5((text+str(block_index)).encode()).hexdigest()}',use_container_width=True)
+    st.code(text,language='text')
+
+
+def _render_assistant_message(answer, prompt=''):
+    if not answer: return
+    pattern=re.compile(r'```([A-Za-z0-9_+#./-]*)\s*\n?(.*?)```',re.S)
+    pos=0; found=False; idx=0
+    for m in pattern.finditer(answer):
+        found=True
+        before=answer[pos:m.start()].strip()
+        if before: st.markdown(before)
+        _render_code_block(m.group(2).strip('\n'),m.group(1).strip() or 'text',idx)
+        idx+=1; pos=m.end()
+    tail=answer[pos:].strip()
+    if tail:
+        if ('Main topic--|' in tail or 'Main topic --|' in tail) and '```' not in tail: _render_mindmap(tail,idx)
+        else: st.markdown(tail)
+    if not found and not tail and answer.strip(): st.markdown(answer)
+
+
+def _v19_render_message(role, msg):
+    avatar = "👤" if role == "user" else "🏔️"
+    who = "You" if role == "user" else "RockyAI"
+    cls = "v19-message v19-user" if role == "user" else "v19-message"
+    safe = html.escape(str(msg)).replace("\n", "<br>")
+    st.markdown(
+        f"<div class='{cls}'><div class='v19-avatar'>{avatar}</div><div class='v19-message-body'><div class='v19-who'>{who}</div><div>{safe}</div></div></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def v19_chat_ui():
-    name = st.session_state.v17_active_chat
-    messages = st.session_state.v17_chats[name]
-
-    st.markdown(f"<div class='v19-topbar'><div><div class='v19-brand'>🏔️ RockyAIv2-0</div><div class='v19-sub'>AI powered personal workspace</div></div><div class='v19-status'><span></span> Online</div></div>", unsafe_allow_html=True)
-
+    name=st.session_state.v17_active_chat
+    messages=st.session_state.v17_chats[name]
+    st.markdown(f"<div class='v19-topbar'><div><div class='v19-brand'>🏔️ RockyAIv2-0</div><div class='v19-sub'>AI powered personal workspace</div></div><div class='v19-status'><span></span> Online</div></div>",unsafe_allow_html=True)
     if not messages:
-        st.markdown("<div class='v19-welcome'><div class='v19-big-logo'>🏔️</div><div class='v19-kicker'>YOUR PERSONAL AI WORKSPACE</div><h1>What are we building today?</h1><p>Ask anything, study, code, work with files, create documents, plan projects or use any RockyAI extension — all from one conversation.</p></div>", unsafe_allow_html=True)
+        st.markdown("<div class='v19-welcome'><div class='v19-big-logo'>🏔️</div><div class='v19-kicker'>YOUR PERSONAL AI WORKSPACE</div><h1>What are we building today?</h1><p>Ask anything, study, code, work with files, create documents, plan projects or use any RockyAI extension — all from one conversation.</p></div>",unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='v19-chat-title'><span>🏔️</span><strong>{html.escape(name)}</strong><small>Unified conversation</small></div>", unsafe_allow_html=True)
-
-    for role, msg in messages:
-        avatar = "👤" if role == "user" else "🏔️"
-        who = "You" if role == "user" else "RockyAI"
-        cls = "v19-message v19-user" if role == "user" else "v19-message"
-        safe = html.escape(msg).replace("\n", "<br>")
-        st.markdown(f"<div class='{cls}'><div class='v19-avatar'>{avatar}</div><div class='v19-message-body'><div class='v19-who'>{who}</div><div>{safe}</div></div></div>", unsafe_allow_html=True)
-
+        st.markdown(f"<div class='v19-chat-title'><span>🏔️</span><strong>{html.escape(name)}</strong><small>Unified conversation</small></div>",unsafe_allow_html=True)
+    for role,msg in messages:
+        avatar='👤' if role=='user' else '🏔️'; who='You' if role=='user' else 'RockyAI'; cls='v19-message v19-user' if role=='user' else 'v19-message'
+        st.markdown(f"<div class='{cls}'><div class='v19-avatar'>{avatar}</div><div class='v19-message-body'><div class='v19-who'>{who}</div>",unsafe_allow_html=True)
+        _render_assistant_message(msg) if role=='assistant' else st.markdown(msg)
+        st.markdown('</div></div>',unsafe_allow_html=True)
     if st.session_state.v19_extensions_open:
-        st.markdown("<style>.st-key-v19_plus_wrap button{transform:rotate(45deg)!important;background:linear-gradient(135deg,#ef233c,#b7092b)!important}</style>", unsafe_allow_html=True)
-    with st.container(key="v19_plus_wrap"):
-        if st.button("＋", key="v19_plus_button", help="Open RockyAI extensions"):
-            st.session_state.v19_extensions_open = not st.session_state.v19_extensions_open
-            st.rerun()
-
+        st.markdown("<style>.st-key-v19_plus_wrap button{transform:rotate(45deg)!important;background:linear-gradient(135deg,#ef233c,#b7092b)!important}</style>",unsafe_allow_html=True)
+    with st.container(key='v19_plus_wrap'):
+        if st.button('＋',key='v19_plus_button',help='Open RockyAI extensions'):
+            st.session_state.v19_extensions_open=not st.session_state.v19_extensions_open; st.rerun()
     if st.session_state.v19_extensions_open:
-        st.markdown("<div class='v19-menu-row'><b>Attachments</b><span>Every RockyAI tool except Ask RockyAI</span></div>", unsafe_allow_html=True)
-        if st.button("📎 Attachments", key="v19_show_attachments", use_container_width=True):
-            st.session_state.v19_attachment_open = not st.session_state.v19_attachment_open
-            st.rerun()
-        if st.session_state.v19_attachment_open:
-            v19_extensions_panel()
-        if st.button("📁 Add File", key="v19_add_file", use_container_width=True):
-            st.session_state.v19_attachment_open = True
-            st.session_state.v19_extensions_open = True
-            st.rerun()
-
-    if st.session_state.v19_attachment_open:
-        attachment_uploader()
-
-    prefill = st.session_state.pop("v18_prefill", "")
-    prompt = st.chat_input("Message RockyAI…", key="v19_input")
-    if prefill and not prompt:
-        prompt = prefill
-
+        st.markdown("<div class='v19-menu-row'><b>Extensions</b><span>Optional shortcuts — normal chat works without them.</span></div>",unsafe_allow_html=True)
+        if st.button('📎 Attachments',key='v19_show_attachments',use_container_width=True):
+            st.session_state.v19_attachment_open=not st.session_state.v19_attachment_open; st.rerun()
+        if st.session_state.v19_attachment_open: v19_extensions_panel()
+        if st.button('📁 Add File',key='v19_add_file',use_container_width=True):
+            st.session_state.v19_attachment_open=True; st.session_state.v19_extensions_open=True; st.rerun()
+    if st.session_state.v19_attachment_open: attachment_uploader()
+    attached=st.session_state.get('rockyai_attachments',[])
+    if attached:
+        labels=' • '.join(html.escape(x['name']) for x in attached)
+        st.markdown(f"<div class='attachment-strip'><b>📎 Ready for this chat:</b> {labels}<br><span class='small-muted'>Ask naturally — you do not need to describe the file first.</span></div>",unsafe_allow_html=True)
+    prefill=st.session_state.pop('v18_prefill','')
+    prompt=st.chat_input('Message RockyAI…',key='v19_input')
+    if prefill and not prompt: prompt=prefill
     if prompt and prompt.strip():
-        prompt = prompt.strip()
-        messages.append(("user", prompt))
-        if name.startswith("New chat") and len(messages) == 1:
-            title = re.sub(r"\s+", " ", prompt)[:45].strip() or name
-            if title != name:
-                st.session_state.v17_chats[title] = st.session_state.v17_chats.pop(name)
-                st.session_state.v18_pinned_chats = [title if x == name else x for x in st.session_state.v18_pinned_chats]
-                st.session_state.v17_active_chat = title
-                name = title
-                messages = st.session_state.v17_chats[name]
+        original=prompt.strip(); prompt,shortcut=_slash_command(original); prompt=prompt or original
+        messages.append(('user',original))
 
-        instruction = '''
-You are RockyAIv2-0, a unified all-in-one personal AI workspace chatbot. Never force the user to leave the conversation to use a capability. Treat the RockyAI extensions as capabilities available inside the same chat.
-You are simultaneously a general assistant, tutor, question solver, file/PDF study assistant, quiz and sample-paper generator, coding assistant, debugger, mind-map and flashcard creator, study planner, summarizer, translator, brainstorm partner, exam-preparation coach, science and periodic-table helper, daily-challenge coach, debate coach, interview coach, career-roadmap coach, project builder, presentation maker, memory trainer, goal coach, vocabulary builder and fact-checking assistant.
-For attached files, use the attachment as the primary source when the user asks about it. Do not invent source-specific facts.
-When the user requests a file, produce complete clean content suitable for that format. Supported formats include PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON, Markdown, HTML, CSS, JavaScript, Python, Java, C, C++, Arduino, SQL, XML, YAML and RTF. Image generation is not supported.
-For code, provide complete copy-paste-ready code when requested. Adapt explanations to the requested school grade or skill level.
-'''
-        with st.spinner("RockyAI is thinking…"):
-            answer = ask_rockyai(prompt, instruction)
-        messages.append(("assistant", answer))
-        save_chat("Unified Chat", prompt, answer)
-        st.rerun()
-
+        # Render the submitted prompt immediately in the same Streamlit run.
+        # Without this, st.chat_input clears after Enter and the new user
+        # message is not visible until the Gemini response finishes and reruns.
+        _v19_render_message('user', original)
+        if name.startswith('New chat') and len(messages)==1:
+            title=re.sub(r'\s+',' ',prompt)[:45].strip() or name
+            if title!=name:
+                st.session_state.v17_chats[title]=st.session_state.v17_chats.pop(name)
+                st.session_state.v18_pinned_chats=[title if x==name else x for x in st.session_state.v18_pinned_chats]
+                st.session_state.v17_active_chat=title; name=title; messages=st.session_state.v17_chats[name]
+        shortcut_instruction=''
+        if shortcut=='CODE': shortcut_instruction='Return complete code in exactly one fenced code block with the programming language identifier. Infer the language if possible.'
+        elif shortcut.startswith('CODE_'):
+            language=shortcut.replace('CODE_','').lower(); language={'cpp':'C++','javascript':'JavaScript','arduino':'Arduino','python':'Python','java':'Java'}.get(language,language)
+            shortcut_instruction=f'Use programming language {language}. Return complete copy-paste-ready code in exactly one fenced code block tagged {language.lower()}.'
+        elif shortcut=='MINDMAP': shortcut_instruction='Create a monospaced text mind map using exactly this style: Main topic--|\n            |-{Topic one}\n            |  ├─ {Subtopic}: {description}\n            |  └─ {Subtopic}: {description}\n            |-{Topic two}\n            |  ├─ {Subtopic}: {description}. Do not use Mermaid.'
+        elif shortcut=='QUIZ': shortcut_instruction='Create a complete quiz with answers and explanations.'
+        elif shortcut=='SUMMARY': shortcut_instruction='Summarize the supplied material; if an attachment exists, use it as the primary source.'
+        elif shortcut=='FLASHCARDS': shortcut_instruction='Create concise question/answer flashcards from the topic or attachment.'
+        elif shortcut=='TRANSLATE': shortcut_instruction='Translate the supplied text naturally while preserving structure and meaning.'
+        elif shortcut=='EXPLAIN': shortcut_instruction='Explain the requested topic clearly at the user level.'
+        elif shortcut=='STUDY': shortcut_instruction='Act as a study tutor and build an appropriate lesson and practice sequence.'
+        instruction="""You are RockyAIv2-0, a unified all-in-one personal AI workspace chatbot powered by Gemini, with RockyCore Data Science/NLP tools.
+Normal natural-language conversation is always supported. Do NOT require a slash command and do NOT require the user to describe an attachment before using it.
+If files are attached, treat them as available context. When the user says 'this', 'the PDF', 'the file', 'the document', 'it', 'page 3', etc., use the attached material when it supports the request. Do not invent source-specific facts.
+If the user asks for code, provide complete copy-paste-ready code in a fenced code block with a language identifier.
+If the user asks for a mind map, use this branch style and do not use Mermaid:
+Main topic--|
+            |-{Topic one}
+            |  ├─ {Subtopic}: {description}
+            |  └─ {Subtopic}: {description}
+            |-{Topic two}
+            |  ├─ {Subtopic}: {description}
+All capabilities can be requested directly in normal language. Slash commands are optional shortcuts only."""
+        if shortcut_instruction: instruction+='\nOPTIONAL SHORTCUT INSTRUCTION:\n'+shortcut_instruction
+        with st.spinner('RockyAI is thinking…'):
+            answer=ask_rockyai(prompt,instruction)
+        messages.append(('assistant',answer)); save_chat('Unified Chat',original,answer); st.rerun()
     if messages:
-        last_user = next((m for r, m in reversed(messages) if r == "user"), "")
-        last_answer = next((m for r, m in reversed(messages) if r == "assistant"), "")
-        if last_answer:
-            v18_make_download(last_answer, last_user)
+        last_user=next((m for r,m in reversed(messages) if r=='user'),''); last_answer=next((m for r,m in reversed(messages) if r=='assistant'),'')
+        if last_answer: v18_make_download(last_answer,last_user)
 
 def file_studio():
     st.markdown("## 📦 File Studio")
