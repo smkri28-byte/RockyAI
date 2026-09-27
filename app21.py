@@ -968,7 +968,7 @@ def login_page():
     st.markdown(
         """
         <div class="rocky-hero">
-            <span class="badge">ROCKYAI v1-7</span>
+            <span class="badge">ROCKYAI v2-0</span>
             <span class="badge">AI LEARNING WORKSPACE</span>
             <h1>🏔️ RockyAI</h1>
             <p>Learn faster. Practice smarter. Build better.</p>
