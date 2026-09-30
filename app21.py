@@ -720,11 +720,10 @@ def attachment_uploader():
 
 
 def _local_math_answer(prompt):
-    # Safe, intentionally small arithmetic evaluator for the local assistant.
     expr = prompt.strip().replace("×", "*").replace("÷", "/")
     if re.fullmatch(r"[0-9\s\.\+\-\*/%\(\)]+", expr):
         try:
-            return f"**Result:** `{eval(expr, {"__builtins__": {}}, {})}`"
+            return f"**Result:** `{eval(expr, {'__builtins__': {}}, {})}`"
         except Exception:
             return None
     return None
@@ -748,7 +747,6 @@ def _local_attachment_answer(prompt, attachment_text):
 
 
 def _gemini_history_text(limit=16):
-    """Build a compact conversation history for Gemini from the active RockyAI chat."""
     messages = st.session_state.get("v17_chats", {}).get(
         st.session_state.get("v17_active_chat", ""), []
     )
@@ -763,7 +761,6 @@ def _gemini_history_text(limit=16):
 
 
 def _gemini_generate(prompt, instruction="", attachment_text=""):
-    """Generate the main conversational response through Gemini."""
     if GEMINI_CLIENT is None:
         return None, "Gemini is not configured. Add GEMINI_API_KEY to the environment."
 
@@ -774,7 +771,6 @@ def _gemini_generate(prompt, instruction="", attachment_text=""):
     if history:
         context_parts.append("RECENT CONVERSATION:\n" + history)
     if attachment_text:
-        # Keep very large extracted files bounded so one upload cannot consume the whole prompt.
         context_parts.append("ATTACHED FILE TEXT:\n" + attachment_text[:50000])
 
     context = "\n\n---\n\n".join(context_parts)
@@ -794,17 +790,14 @@ def _gemini_generate(prompt, instruction="", attachment_text=""):
 
 
 def ask_rockyai(prompt, instruction=""):
-    """RockyAI v2-0 assistant: Gemini for conversation + local RockyCore DS/NLP for analysis."""
     attachment_text, _ = attachment_context()
 
-    # Keep deterministic local math available for exact arithmetic.
     math_answer = _local_math_answer(prompt)
     if math_answer:
         return math_answer
 
     low = str(prompt).strip().lower()
 
-    # Keep the custom RockyCore engines available for explicit analytical requests.
     if not attachment_text and any(k in low for k in [
         "data science", "dataset", "csv", "excel", "regression",
         "classification", "clustering", "k-means", "pca"
@@ -833,7 +826,6 @@ def ask_rockyai(prompt, instruction=""):
     if answer:
         return answer
 
-    # Graceful local fallback if Gemini is temporarily unavailable.
     if attachment_text:
         file_answer = _local_attachment_answer(prompt, attachment_text)
         if file_answer:
@@ -2306,7 +2298,6 @@ def v18_detect_file_request(prompt):
         "yaml": ("YAML", ".yaml"), "yml": ("YAML", ".yml"), "txt": ("TXT", ".txt"),
         "text file": ("TXT", ".txt"), "rtf": ("RTF", ".rtf"),
     }
-    # Prefer explicit file/download/create/export wording so normal questions about a PDF don't trigger a download.
     if not any(x in p for x in ["create", "generate", "make", "download", "export", "save as", "file"]):
         return None
     for key, value in mapping.items():
@@ -2362,7 +2353,6 @@ def v18_make_download(answer, prompt):
     if not req:
         return
     file_type, _ = req
-    # Ask the model to return only the file body for code/data formats, while normal prose is used for documents.
     content = answer
     if file_type in {"Python","JavaScript","Java","C","C++","Arduino","CSS","HTML","SQL","XML","YAML","JSON"}:
         content = clean_code(answer)
@@ -2491,7 +2481,7 @@ def v19_chat_ui():
     messages=st.session_state.v17_chats[name]
     st.markdown(f"<div class='v19-topbar'><div><div class='v19-brand'>🏔️ RockyAIv2-0</div><div class='v19-sub'>AI powered personal workspace</div></div><div class='v19-status'><span></span> Online</div></div>",unsafe_allow_html=True)
     if not messages:
-        st.markdown("<div class='v19-welcome'><div class='v19-big-logo'>🏔️</div><div class='v19-kicker'>YOUR PERSONAL AI WORKSPACE</div><h1>What are we building today?</h1><p>Ask anything, study, code, work with files, create documents, plan projects or use any RockyAI extension — all from one conversation.</p></div>",unsafe_allow_html=True)
+        st.markdown("<div class='v19-welcome'><div class='v19-big-logo'>🏔️️</div><div class='v19-kicker'>YOUR PERSONAL AI WORKSPACE</div><h1>What are we building today?</h1><p>Ask anything, study, code, work with files, create documents, plan projects or use any RockyAI extension — all from one conversation.</p></div>",unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='v19-chat-title'><span>🏔️</span><strong>{html.escape(name)}</strong><small>Unified conversation</small></div>",unsafe_allow_html=True)
     for role,msg in messages:
@@ -2523,9 +2513,6 @@ def v19_chat_ui():
         original=prompt.strip(); prompt,shortcut=_slash_command(original); prompt=prompt or original
         messages.append(('user',original))
 
-        # Render the submitted prompt immediately in the same Streamlit run.
-        # Without this, st.chat_input clears after Enter and the new user
-        # message is not visible until the Gemini response finishes and reruns.
         _v19_render_message('user', original)
         if name.startswith('New chat') and len(messages)==1:
             title=re.sub(r'\s+',' ',prompt)[:45].strip() or name
@@ -2934,157 +2921,94 @@ def data_science_page():
 
     with tabs[3]:
         if not nums:
-            st.warning("Visual charts need numeric columns.")
+            st.warning("No numeric columns found.")
         else:
-            chart=st.selectbox("Chart", ["Histogram","Scatter","Line","Box plot","Correlation heatmap"])
-            if chart == "Histogram":
-                c=st.selectbox("Column",nums,key="hist_c"); bins=st.slider("Bins",5,100,20)
-                fig,ax=plt.subplots(); ax.hist(df[c].dropna(),bins=bins); ax.set_title(f"Distribution: {c}"); ax.set_xlabel(c); ax.set_ylabel("Count"); st.pyplot(fig); _fig_download(fig,"rockyai_histogram.png")
-            elif chart == "Scatter":
-                x=st.selectbox("X",nums,key="scx"); y=st.selectbox("Y",nums,index=min(1,len(nums)-1),key="scy")
-                fig,ax=plt.subplots(); ax.scatter(df[x],df[y],alpha=.7); ax.set_xlabel(x); ax.set_ylabel(y); ax.set_title(f"{x} vs {y}"); st.pyplot(fig); _fig_download(fig,"rockyai_scatter.png")
-            elif chart == "Line":
-                c=st.selectbox("Column",nums,key="line_c"); fig,ax=plt.subplots(); ax.plot(df[c].reset_index(drop=True)); ax.set_title(c); st.pyplot(fig); _fig_download(fig,"rockyai_line.png")
-            elif chart == "Box plot":
-                c=st.selectbox("Column",nums,key="box_c"); fig,ax=plt.subplots(); ax.boxplot(df[c].dropna()); ax.set_title(c); st.pyplot(fig); _fig_download(fig,"rockyai_boxplot.png")
+            chart_type = st.selectbox("Chart type", ["Scatter", "Histogram", "Line", "Box", "Correlation Heatmap"])
+            x_col = st.selectbox("X column", df.columns, key="ds_x")
+            y_col = st.selectbox("Y column", nums, key="ds_y")
+            fig, ax = plt.subplots(figsize=(8, 5))
+            if chart_type == "Scatter":
+                ax.scatter(df[x_col], df[y_col], alpha=0.7, color="#ef233c")
+                ax.set_xlabel(x_col); ax.set_ylabel(y_col)
+            elif chart_type == "Histogram":
+                ax.hist(df[y_col].dropna(), bins=20, color="#ef233c", edgecolor="black")
+                ax.set_xlabel(y_col)
+            elif chart_type == "Line":
+                ax.plot(df[x_col], df[y_col], color="#ef233c")
+                ax.set_xlabel(x_col); ax.set_ylabel(y_col)
+            elif chart_type == "Box":
+                ax.boxplot(df[y_col].dropna())
+                ax.set_ylabel(y_col)
+            elif chart_type == "Correlation Heatmap":
+                fig, ax = plt.subplots(figsize=(6, 6))
+                cax = ax.matshow(df[nums].corr(), cmap="coolwarm")
+                fig.colorbar(cax)
+                ax.set_xticks(range(len(nums)))
+                ax.set_yticks(range(len(nums)))
+                ax.set_xticklabels(nums, rotation=90)
+                ax.set_yticklabels(nums)
+            st.pyplot(fig)
+            _fig_download(fig, "rockyai_chart.png")
+
+    with tabs[4]:
+        st.markdown("#### Machine Learning Models")
+        ml_type = st.selectbox("Task type", ["Regression", "Classification"])
+        target_col = st.selectbox("Target column", df.columns, key="ml_target")
+        feature_cols = st.multiselect("Feature columns", [c for c in nums if c != target_col], default=[c for c in nums if c != target_col][:3])
+        if st.button("🚀 Train Model", type="primary"):
+            if not feature_cols:
+                st.warning("Select at least one feature column.")
             else:
-                fig,ax=plt.subplots(figsize=(8,6)); im=ax.imshow(df[nums].corr(),aspect="auto"); ax.set_xticks(range(len(nums))); ax.set_xticklabels(nums,rotation=90); ax.set_yticks(range(len(nums))); ax.set_yticklabels(nums); fig.colorbar(im,ax=ax); ax.set_title("Correlation Matrix"); st.pyplot(fig); _fig_download(fig,"rockyai_correlation.png")
-
-    with tabs[4]:
-        st.markdown("### Regression / classification")
-        task=st.selectbox("Task",["Linear Regression","Logistic Classification"])
-        if len(nums)<2: st.warning("At least two numeric columns are required.")
-        else:
-            target=st.selectbox("Target",nums,key="ml_target")
-            features=st.multiselect("Features",[c for c in nums if c!=target],default=[c for c in nums if c!=target][:min(3,len(nums)-1)],key="ml_features")
-            test_size=st.slider("Test size",0.1,0.4,0.2,0.05)
-            if st.button("🚀 Train model",type="primary") and features:
-                work=df[features+[target]].dropna()
-                X=work[features]; y=work[target]
-                if len(work)<10: st.error("Need at least 10 complete rows.");
-                elif task=="Linear Regression":
-                    Xtr,Xte,ytr,yte=train_test_split(X,y,test_size=test_size,random_state=42); model=LinearRegression().fit(Xtr,ytr); pred=model.predict(Xte)
-                    st.metric("R²",f"{r2_score(yte,pred):.4f}"); st.metric("RMSE",f"{mean_squared_error(yte,pred)**.5:.4f}"); st.dataframe(pd.DataFrame({"actual":yte.values,"predicted":pred}),use_container_width=True)
-                else:
-                    if y.nunique()!=2: st.error("For this simple classifier, the target must contain exactly 2 classes.")
+                try:
+                    X = df[feature_cols].dropna()
+                    y = df.loc[X.index, target_col]
+                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                    if ml_type == "Regression":
+                        model = LinearRegression()
+                        model.fit(X_train, y_train)
+                        preds = model.predict(X_test)
+                        mse = mean_squared_error(y_test, preds)
+                        r2 = r2_score(y_test, preds)
+                        st.success(f"Model trained successfully! • MSE: `{mse:.4f}` • R²: `{r2:.4f}`")
+                        st.write("Coefficients:", dict(zip(feature_cols, model.coef_)))
                     else:
-                        Xtr,Xte,ytr,yte=train_test_split(X,y,test_size=test_size,random_state=42,stratify=y); model=LogisticRegression(max_iter=2000).fit(Xtr,ytr); pred=model.predict(Xte)
-                        st.metric("Accuracy",f"{accuracy_score(yte,pred):.4f}"); st.text(classification_report(yte,pred)); st.dataframe(pd.DataFrame(confusion_matrix(yte,pred)),use_container_width=True)
+                        model = LogisticRegression(max_iter=1000)
+                        model.fit(X_train, y_train)
+                        preds = model.predict(X_test)
+                        acc = accuracy_score(y_test, preds)
+                        st.success(f"Model trained successfully! • Accuracy: `{acc:.4f}`")
+                        st.text(classification_report(y_test, preds))
+                except Exception as e:
+                    st.error(f"Training failed: {e}")
 
     with tabs[5]:
-        if len(nums)<2: st.warning("At least two numeric columns are required.")
-        else:
-            features=st.multiselect("Clustering features",nums,default=nums[:min(3,len(nums))],key="cluster_features")
-            k=st.slider("Number of clusters",2,10,3)
-            if st.button("🧩 Run K-Means",type="primary") and features:
-                work=df[features].dropna(); scaled=StandardScaler().fit_transform(work); labels=KMeans(n_clusters=k,n_init=10,random_state=42).fit_predict(scaled); result=work.copy(); result["cluster"]=labels
-                st.dataframe(result.head(100),use_container_width=True)
-                if len(features)>=2:
-                    fig,ax=plt.subplots(); ax.scatter(result[features[0]],result[features[1]],c=result["cluster"]); ax.set_xlabel(features[0]); ax.set_ylabel(features[1]); ax.set_title("K-Means clusters"); st.pyplot(fig); _fig_download(fig,"rockyai_clusters.png")
+        st.markdown("#### K-Means Clustering")
+        cluster_features = st.multiselect("Clustering features (numeric)", nums, default=nums[:2] if len(nums)>=2 else nums)
+        k = st.slider("Clusters (K)", 2, 8, 3)
+        if st.button("🧩 Run Clustering", type="primary"):
+            if len(cluster_features) < 2:
+                st.warning("Select at least 2 numeric features.")
+            else:
+                try:
+                    sub = df[cluster_features].dropna()
+                    scaler = StandardScaler()
+                    scaled = scaler.fit_transform(sub)
+                    kmeans = KMeans(n_init=10, n_clusters=k, random_state=42)
+                    labels = kmeans.fit_predict(scaled)
+                    sub["Cluster"] = labels
+                    st.success(f"Clustering complete with {k} clusters.")
+                    st.dataframe(sub.head(100), use_container_width=True)
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    scatter = ax.scatter(sub.iloc[:, 0], sub.iloc[:, 1], c=labels, cmap="viridis", alpha=0.8)
+                    ax.set_xlabel(cluster_features[0])
+                    ax.set_ylabel(cluster_features[1])
+                    fig.colorbar(scatter)
+                    st.pyplot(fig)
+                    _fig_download(fig, "clusters.png")
+                except Exception as e:
+                    st.error(f"Clustering failed: {e}")
 
     with tabs[6]:
-        export_df=st.session_state.get("rocky_ds_df",df)
-        st.download_button("⬇️ Download CSV",export_df.to_csv(index=False).encode("utf-8"),file_name="rockyai_dataset.csv",mime="text/csv")
-        st.download_button("⬇️ Download JSON",export_df.to_json(orient="records",indent=2).encode("utf-8"),file_name="rockyai_dataset.json",mime="application/json")
-
-
-# ============================================================
-# ROCKYAI v2-0 — CUSTOM NLP ENGINE
-# ============================================================
-
-NLP_STOPWORDS=set("a an the and or but if then else for to of in on at by from with is are was were be been being this that these those it its as into about over under after before between during through very can could should would will just than too also not no yes i you he she we they them me my our your their what which who whom when where why how do does did done have has had having am im ive id ill there here more most some any all each few many much such only own same so because while again further once both each other himself herself itself ourselves yourselves themselves".split())
-POS_WORDS=set("good great excellent amazing happy helpful love like awesome best success successful win wonderful positive strong smart easy improve improved improvement beautiful clear useful accurate fast perfect thanks thank enjoyable confident excited safe".split())
-NEG_WORDS=set("bad terrible horrible sad angry hate dislike awful worst failure failed negative weak difficult wrong problem error poor useless slow confusing confused boring dangerous".split())
-
-
-def nlp_tokens(text):
-    return re.findall(r"[A-Za-z][A-Za-z0-9_'-]*", str(text).lower())
-
-
-def nlp_sentences(text):
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", str(text).strip()) if s.strip()]
-
-
-def nlp_keywords(text, n=20):
-    toks=[t for t in nlp_tokens(text) if t not in NLP_STOPWORDS and len(t)>2]
-    return Counter(toks).most_common(n)
-
-
-def nlp_sentiment(text):
-    toks=nlp_tokens(text); pos=sum(t in POS_WORDS for t in toks); neg=sum(t in NEG_WORDS for t in toks); score=pos-neg
-    label="Positive" if score>0 else "Negative" if score<0 else "Neutral"
-    return label,score,pos,neg
-
-
-def nlp_summary(text, count=5):
-    sentences=nlp_sentences(text)
-    if len(sentences)<=count: return sentences
-    freq=Counter(t for t in nlp_tokens(text) if t not in NLP_STOPWORDS and len(t)>2)
-    scored=[]
-    for i,s in enumerate(sentences):
-        toks=nlp_tokens(s); score=sum(freq[t] for t in toks)/max(1,len(toks)); scored.append((score,i,s))
-    return [x[2] for x in sorted(sorted(scored,reverse=True)[:count],key=lambda z:z[1])]
-
-
-def nlp_entities(text):
-    patterns={"Email":r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b","URL":r"https?://[^\s]+","Phone":r"(?<!\d)(?:\+?\d[\d\s().-]{7,}\d)(?!\d)","Date":r"\b(?:\d{1,2}[/-]){1,2}\d{2,4}\b"}
-    found={k:list(dict.fromkeys(re.findall(v,text))) for k,v in patterns.items()}; return found
-
-
-def nlp_page():
-    st.markdown("# 🧠 RockyAI NLP Studio")
-    st.caption("A local NLP toolkit for text processing, classification-style analysis, similarity and information extraction.")
-    up=st.file_uploader("Upload text / PDF / DOCX",type=["txt","md","csv","pdf","docx"],key="nlp_upload")
-    text=st.text_area("Text input",height=220,placeholder="Paste text here or upload a supported file...")
-    if up:
-        try: text=(_read_attachment_text(up) or text)
-        except Exception as e: st.warning(f"File extraction issue: {e}")
-    if not text.strip(): st.info("Add text to activate the NLP engine."); return
-
-    tabs=st.tabs(["📊 Overview","😊 Sentiment","🔑 Keywords","📝 Summarize","🏷️ Entities","🔬 TF-IDF","🔗 Similarity","🔤 NLP Stats"])
-    with tabs[0]:
-        toks=nlp_tokens(text); sentences=nlp_sentences(text); words=[t for t in toks if t not in NLP_STOPWORDS]
-        c1,c2,c3,c4=st.columns(4); c1.metric("Characters",len(text)); c2.metric("Words",len(toks)); c3.metric("Sentences",len(sentences)); c4.metric("Unique terms",len(set(toks)))
-        st.write("Top terms:", ", ".join(f"{w} ({n})" for w,n in nlp_keywords(text,15)))
-    with tabs[1]:
-        label,score,pos,neg=nlp_sentiment(text); st.metric("Sentiment",label); st.metric("Score",score); st.write(f"Positive terms: {pos} • Negative terms: {neg}"); st.caption("Sentiment uses RockyAI's transparent local lexicon; it is a lightweight heuristic, not a human-level language model.")
-    with tabs[2]:
-        n=st.slider("Number of keywords",5,50,15); st.dataframe(pd.DataFrame(nlp_keywords(text,n),columns=["keyword","frequency"]),use_container_width=True,hide_index=True)
-    with tabs[3]:
-        n=st.slider("Summary sentences",1,15,5,key="sum_n"); st.write("\n\n".join(nlp_summary(text,n)))
-    with tabs[4]:
-        ents=nlp_entities(text)
-        for k,v in ents.items():
-            st.markdown(f"**{k}**"); st.write(", ".join(v) if v else "None detected")
-    with tabs[5]:
-        docs=[s for s in nlp_sentences(text) if s]
-        if len(docs)<2: st.info("Add at least two sentences for TF-IDF analysis.")
-        else:
-            vec=TfidfVectorizer(stop_words=list(NLP_STOPWORDS)); mat=vec.fit_transform(docs); terms=vec.get_feature_names_out(); scores=np.asarray(mat.mean(axis=0)).ravel(); order=np.argsort(scores)[::-1][:30]; st.dataframe(pd.DataFrame({"term":terms[order],"tfidf":scores[order]}),use_container_width=True,hide_index=True)
-    with tabs[6]:
-        other=st.text_area("Compare against another text",height=180,key="sim_text")
-        if other.strip():
-            vec=TfidfVectorizer(stop_words=list(NLP_STOPWORDS)); m=vec.fit_transform([text,other]); sim=float(cosine_similarity(m[0:1],m[1:2])[0][0]); st.metric("Cosine similarity",f"{sim:.4f}")
-    with tabs[7]:
-        toks=nlp_tokens(text); freq=Counter(toks); st.dataframe(pd.DataFrame(freq.most_common(50),columns=["token","count"]),use_container_width=True,hide_index=True)
-
-
-# ============================================================
-# MAIN ROUTER
-# ============================================================
-
-page = st.session_state.get("v18_page", "🏠 Workspace")
-if page == "🏠 Workspace": workspace()
-elif page == "⏰ Scheduled": scheduled_page()
-elif page == "🧩 Plugins": plugins_page()
-elif page == "📁 Project": unified_project_page()
-elif page == "💻 Coder": coder_page()
-elif page == "📊 Data Science": data_science_page()
-elif page == "🧠 NLP Studio": nlp_page()
-elif page == "📚 Study Tools": study_tools_page()
-elif page == "📦 File Studio": file_studio()
-elif page == "🕘 History": history_page()
-elif page == "📊 Analytics": analytics_page()
-elif page == "🛡️ Admin Panel": admin_page()
-
-st.markdown('<div class="rocky-footer">RockyAIv2-0 • Gemini + RockyCore DS + NLP • Learn • Analyze • Build</div>', unsafe_allow_html=True)
+        st.markdown("#### Export Cleaned Dataset")
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download CSV", csv_data, file_name="rockyai_cleaned_dataset.csv", mime="text/csv", use_container_width=True)
